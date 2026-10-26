@@ -52,6 +52,15 @@ export {
 } from './components/feed/SnapsFeedCard';
 export { PollVoteWidget, type PollVoteWidgetProps } from './components/PollVoteWidget';
 export {
+  default as ExcludedTagsManager,
+  type ExcludedTagsManagerProps,
+  useExcludedTags,
+  normalizeTag,
+  getPostTags,
+  filterPostsByExcludedTags,
+  EXCLUDED_TAGS_STORAGE_KEY,
+} from './components/feed/ExcludedTagsFilter';
+export {
   default as SnapsFeedList,
   type SnapsFeedListProps,
 } from './components/feed/SnapsFeedList';

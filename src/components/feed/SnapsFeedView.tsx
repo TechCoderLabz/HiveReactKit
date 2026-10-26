@@ -51,6 +51,7 @@ import SnapsFeedSidebarNav from './SnapsFeedSidebarNav';
 import TrendingTagsPanel, { type SnapsTrendingTag } from './TrendingTagsPanel';
 import TagsBottomSheet from './TagsBottomSheet';
 import FeedPickerBottomSheet from './FeedPickerBottomSheet';
+import ExcludedTagsManager, { useExcludedTags, filterPostsByExcludedTags } from './ExcludedTagsFilter';
 import type { RewardOption } from '../../utils/commentOptions';
 
 export type SnapsFeedKey = 'snaps' | 'ecency' | 'threads' | 'liketu' | 'slothbuzz' | 'following' | 'all';
@@ -298,6 +299,14 @@ export interface SnapsFeedViewProps {
    *     horizontal scroll once there are several feed types.
    */
   mobileNav?: 'pills' | 'dropdown';
+  /** Opt in to the "Muted tags" filter: shows a manager above the feed
+   *  and hides snaps whose tags match. Default false (no change). */
+  enableExcludedTags?: boolean;
+  /** Controlled list of muted tags. Omit to persist in localStorage
+   *  (`hrk:snaps:excludedTags`). */
+  excludedTags?: string[];
+  /** Called with the normalized list whenever the user edits it. */
+  onExcludedTagsChange?: (tags: string[]) => void;
 
   /** Optional render slot for a per-card right-side header action menu
    *  (Edit / Delete / Flag). Forwarded to every <SnapsFeedCard/>. */
@@ -449,7 +458,11 @@ export function SnapsFeedView({
   onSelectionChange,
   isWeb2User,
   disableIframePreviews,
+  enableExcludedTags = false,
+  excludedTags: excludedTagsProp,
+  onExcludedTagsChange,
 }: SnapsFeedViewProps) {
+  const [excludedTags, setExcludedTags] = useExcludedTags(excludedTagsProp, onExcludedTagsChange);
   const finalLabels = { ...DEFAULT_LABELS, ...labels };
   const finalAvatars = { ...DEFAULT_AVATARS, ...avatars };
 
@@ -689,6 +702,7 @@ export function SnapsFeedView({
             hasMore={!!slot.hasMore}
             onLoadMore={slot.onLoadMore}
             emptyMessage={`No ${emptyLabel} posts yet.`}
+            excludedTags={enableExcludedTags ? excludedTags : undefined}
           />
         )}
       </>
@@ -854,6 +868,15 @@ export function SnapsFeedView({
                 )}
                 <span>{activeSlot?.newCount} posted</span>
               </button>
+            </div>
+          )}
+          {enableExcludedTags && (
+            <div className="mb-3">
+              <ExcludedTagsManager
+                tags={excludedTags}
+                onChange={setExcludedTags}
+                hiddenCount={activeSlot ? activeSlot.posts.length - filterPostsByExcludedTags(activeSlot.posts, excludedTags).length : 0}
+              />
             </div>
           )}
           {renderBody()}

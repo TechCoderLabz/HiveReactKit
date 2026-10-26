@@ -5,11 +5,12 @@
  * triggered. The closest scrolling ancestor is auto-detected so the list
  * works whether the page itself scrolls or a parent container does.
  */
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { Post } from '@/types/post';
 import SnapsFeedCard from './SnapsFeedCard';
 import type { SnapsFeedCardProps } from './SnapsFeedCard';
+import { filterPostsByExcludedTags } from './ExcludedTagsFilter';
 
 export interface SnapsFeedListProps
   extends Omit<SnapsFeedCardProps, 'post'> {
@@ -19,6 +20,10 @@ export interface SnapsFeedListProps
   hasMore?: boolean;
   onLoadMore?: () => void;
   emptyMessage?: string;
+  /** Hide snaps whose json_metadata tags or body #hashtags match any of
+   *  these (case-insensitive, '#' and spaces ignored). Filters what is
+   *  rendered only; `posts` itself is never mutated. */
+  excludedTags?: string[];
 }
 
 const Skeleton = () => (
@@ -69,8 +74,11 @@ const SnapsFeedList = ({
   hasMore,
   onLoadMore,
   emptyMessage = 'Nothing to show.',
+  excludedTags,
   ...cardProps
 }: SnapsFeedListProps) => {
+  const allPosts = posts;
+  const visiblePosts = useMemo(() => filterPostsByExcludedTags(allPosts, excludedTags), [allPosts, excludedTags]);
   // Hold the latest values in refs so the IntersectionObserver callback
   // doesn't need to be recreated on every render (which would re-trigger
   // an immediate `onLoadMore` call each time the sentinel re-mounts and
@@ -177,11 +185,16 @@ const SnapsFeedList = ({
 
   return (
     <div className="space-y-3">
-      {posts.map((post) => (
+      {visiblePosts.length === 0 && excludedTags && excludedTags.length > 0 && (
+        <div className="py-6 text-center text-sm text-[var(--hrk-text-tertiary)]">
+          All loaded snaps are hidden by your muted tags.
+        </div>
+      )}
+      {visiblePosts.map((post) => (
         <SnapsFeedCard
           key={`${post.author}/${post.permlink}`}
           post={post}
-          contextPosts={cardProps.contextPosts || posts}
+          contextPosts={cardProps.contextPosts || visiblePosts}
           {...cardProps}
         />
       ))}
