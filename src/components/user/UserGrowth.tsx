@@ -205,6 +205,13 @@ const UserGrowth: React.FC<UserGrowthProps> = ({ username, defaultRange = 7, cla
             { color: "rgba(251,146,60,0.85)", label: "Benefactor" },
           ]}
         />
+        <EarnedTotals
+          range={range}
+          items={[
+            { color: "rgba(34,197,94,0.85)", label: "Author", hp: data.totals.authorHp, usd: data.totals.authorUsd },
+            { color: "rgba(56,189,248,0.85)", label: "Curation", hp: data.totals.curationHp, usd: data.totals.curationUsd },
+          ]}
+        />
       </ChartCard>
 
       {/* Daily breakdown */}
@@ -275,6 +282,27 @@ const ChartLegend: React.FC<{ items: { color: string; label: string }[] }> = ({ 
         <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: it.color }} />
         {it.label}
       </span>
+    ))}
+  </div>
+);
+
+/** Range totals shown under the Earned chart legend (sums of the same series the chart draws). */
+const EarnedTotals: React.FC<{
+  range: number;
+  items: { color: string; label: string; hp: number; usd: number }[];
+}> = ({ range, items }) => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t border-[var(--hrk-border-subtle)]">
+    {items.map((it) => (
+      <div key={it.label} className="flex items-center justify-between gap-2 text-xs sm:text-sm">
+        <span className="flex items-center gap-1.5 text-[var(--hrk-text-secondary)]">
+          <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ background: it.color }} />
+          Total {it.label.toLowerCase()} earned ({range}d)
+        </span>
+        <span className="text-right">
+          <span className="font-semibold text-[var(--hrk-text-primary)]">{fmtHp(it.hp)}</span>
+          <span className="ml-1.5 text-[11px] text-[var(--hrk-text-tertiary)]">{fmtUsd(it.usd)}</span>
+        </span>
+      </div>
     ))}
   </div>
 );

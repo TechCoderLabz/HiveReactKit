@@ -9,6 +9,7 @@ import { useCallback, useMemo, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { Post } from '@/types/post';
 import SnapsFeedCard from './SnapsFeedCard';
+import { WindowedList, FEED_RENDER_WINDOW_SIZE } from '../common/WindowedList';
 import type { SnapsFeedCardProps } from './SnapsFeedCard';
 import { filterPostsByExcludedTags } from './ExcludedTagsFilter';
 
@@ -24,6 +25,8 @@ export interface SnapsFeedListProps
    *  these (case-insensitive, '#' and spaces ignored). Filters what is
    *  rendered only; `posts` itself is never mutated. */
   excludedTags?: string[];
+  /** Max cards mounted in the DOM at once (data is never trimmed). Default 50. */
+  renderWindowSize?: number;
 }
 
 const Skeleton = () => (
@@ -67,6 +70,8 @@ function findScrollAncestor(el: HTMLElement | null): Element | null {
   return null;
 }
 
+const snapKey = (p: Post) => `${p.author}/${p.permlink}`;
+
 const SnapsFeedList = ({
   posts,
   loading,
@@ -75,6 +80,7 @@ const SnapsFeedList = ({
   onLoadMore,
   emptyMessage = 'Nothing to show.',
   excludedTags,
+  renderWindowSize = FEED_RENDER_WINDOW_SIZE,
   ...cardProps
 }: SnapsFeedListProps) => {
   const allPosts = posts;
@@ -190,14 +196,19 @@ const SnapsFeedList = ({
           All loaded snaps are hidden by your muted tags.
         </div>
       )}
-      {visiblePosts.map((post) => (
-        <SnapsFeedCard
-          key={`${post.author}/${post.permlink}`}
-          post={post}
-          contextPosts={cardProps.contextPosts || visiblePosts}
-          {...cardProps}
-        />
-      ))}
+      <WindowedList
+        items={visiblePosts}
+        windowSize={renderWindowSize}
+        gap={12}
+        getKey={snapKey}
+        renderItem={(post) => (
+          <SnapsFeedCard
+            post={post}
+            contextPosts={cardProps.contextPosts || visiblePosts}
+            {...cardProps}
+          />
+        )}
+      />
 
       {/* Sentinel + spinner. The empty <div> is what the
           IntersectionObserver watches; the spinner only appears while

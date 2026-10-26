@@ -29,6 +29,7 @@ import { MediaLightbox } from './MediaLightbox';
 import { HiveLink } from './common/HiveLink';
 import { getWeb2Identity, Web2ProviderBadge, extractTagsFromMeta } from './feed/AttachmentStrip';
 import { ClientAppBadgeButton } from './common/ClientAppBadgeButton';
+import { WindowedList, FEED_RENDER_WINDOW_SIZE } from './common/WindowedList';
 
 export interface BlogPostListProps {
   /** Post records, in the order they should render. */
@@ -46,6 +47,8 @@ export interface BlogPostListProps {
   onLoadMore?: () => void;
   /** Optional empty-state message override or rich React component. */
   emptyMessage?: React.ReactNode;
+  /** Max posts mounted in the DOM at once (data is never trimmed). Default 50. */
+  renderWindowSize?: number;
 
   // Action callbacks — same shape used by <UserDetailProfile/>.
   onUpvote?: (author: string, permlink: string, percent: number) => void | Promise<void>;
@@ -381,6 +384,8 @@ const PostMediaCarousel: FC<{
 
 import { getGlobalPostFilter } from '@/config/hiveEndpoint';
 
+const blogKey = (p: Post) => `${p.author}/${p.permlink}`;
+
 export const BlogPostList: FC<BlogPostListProps> = ({
   posts,
   currentUser,
@@ -389,6 +394,7 @@ export const BlogPostList: FC<BlogPostListProps> = ({
   hasMore = false,
   onLoadMore,
   emptyMessage = 'No blogs to show.',
+  renderWindowSize = FEED_RENDER_WINDOW_SIZE,
   onUpvote,
   onSubmitComment,
   onClickCommentUpvote,
@@ -487,7 +493,12 @@ export const BlogPostList: FC<BlogPostListProps> = ({
 
   return (
     <div className="space-y-3">
-      {filteredPosts.map((item) => {
+      <WindowedList
+        items={filteredPosts}
+        windowSize={renderWindowSize}
+        gap={12}
+        getKey={blogKey}
+        renderItem={(item) => {
         const postMedia = extractPostMedia(item);
         const previewText =
           item.json_metadata?.description || (item.body ? extractPlainText(item.body) : '');
@@ -758,7 +769,8 @@ export const BlogPostList: FC<BlogPostListProps> = ({
             </div>
           </div>
         );
-      })}
+        }}
+      />
 
       {/* Infinite-scroll sentinel — replaces the explicit "Load more"
           button. An IntersectionObserver fires `onLoadMore` automatically

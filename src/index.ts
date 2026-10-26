@@ -345,3 +345,5 @@ export * from './store/walletStore';
 
 // Image processing utils & types (Crop, Blur/Redact, Downsize)
 export * from './utils/imageProcessor';
+
+export { WindowedList, FEED_RENDER_WINDOW_SIZE, type WindowedListProps } from './components/common/WindowedList';
