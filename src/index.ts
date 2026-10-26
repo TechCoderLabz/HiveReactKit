@@ -54,6 +54,12 @@ export { PollVoteWidget, type PollVoteWidgetProps } from './components/PollVoteW
 export {
   default as ExcludedTagsManager,
   type ExcludedTagsManagerProps,
+  ExcludedTagsPanel,
+  type ExcludedTagsPanelProps,
+  MutedTagsButton,
+  type MutedTagsButtonProps,
+  publishExcludedHiddenCount,
+  useExcludedHiddenCount,
   useExcludedTags,
   normalizeTag,
   getPostTags,

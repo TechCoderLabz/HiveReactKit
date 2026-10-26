@@ -51,7 +51,7 @@ import SnapsFeedSidebarNav from './SnapsFeedSidebarNav';
 import TrendingTagsPanel, { type SnapsTrendingTag } from './TrendingTagsPanel';
 import TagsBottomSheet from './TagsBottomSheet';
 import FeedPickerBottomSheet from './FeedPickerBottomSheet';
-import ExcludedTagsManager, { useExcludedTags, filterPostsByExcludedTags } from './ExcludedTagsFilter';
+import { useExcludedTags, filterPostsByExcludedTags, publishExcludedHiddenCount } from './ExcludedTagsFilter';
 import type { RewardOption } from '../../utils/commentOptions';
 
 export type SnapsFeedKey = 'snaps' | 'ecency' | 'threads' | 'liketu' | 'slothbuzz' | 'following' | 'all';
@@ -299,8 +299,9 @@ export interface SnapsFeedViewProps {
    *     horizontal scroll once there are several feed types.
    */
   mobileNav?: 'pills' | 'dropdown';
-  /** Opt in to the "Muted tags" filter: shows a manager above the feed
-   *  and hides snaps whose tags match. Default false (no change). */
+  /** Opt in to the "Muted tags" filter: hides snaps whose tags match and
+   *  reports the hidden count for `<MutedTagsButton/>`, which the host
+   *  places next to its feed filter. Default false (no change). */
   enableExcludedTags?: boolean;
   /** Controlled list of muted tags. Omit to persist in localStorage
    *  (`hrk:snaps:excludedTags`). */
@@ -462,7 +463,7 @@ export function SnapsFeedView({
   excludedTags: excludedTagsProp,
   onExcludedTagsChange,
 }: SnapsFeedViewProps) {
-  const [excludedTags, setExcludedTags] = useExcludedTags(excludedTagsProp, onExcludedTagsChange);
+  const [excludedTags] = useExcludedTags(excludedTagsProp, onExcludedTagsChange);
   const finalLabels = { ...DEFAULT_LABELS, ...labels };
   const finalAvatars = { ...DEFAULT_AVATARS, ...avatars };
 
@@ -714,6 +715,10 @@ export function SnapsFeedView({
     : selection.kind === 'feed'
       ? feeds[selection.feed]
       : tagFeed;
+  const excludedHiddenCount = enableExcludedTags && activeSlot
+    ? activeSlot.posts.length - filterPostsByExcludedTags(activeSlot.posts, excludedTags).length
+    : 0;
+  useEffect(() => { publishExcludedHiddenCount(excludedHiddenCount); }, [excludedHiddenCount]);
   const showPill = !!(activeSlot && activeSlot.newCount && activeSlot.newCount > 0 && scrolled);
   const activeFeedForHighlight = selection.kind === 'feed' ? selection.feed : null;
   const activeTagForHighlight = selection.kind === 'tag' ? selection.tag : null;
@@ -868,15 +873,6 @@ export function SnapsFeedView({
                 )}
                 <span>{activeSlot?.newCount} posted</span>
               </button>
-            </div>
-          )}
-          {enableExcludedTags && (
-            <div className="mb-3">
-              <ExcludedTagsManager
-                tags={excludedTags}
-                onChange={setExcludedTags}
-                hiddenCount={activeSlot ? activeSlot.posts.length - filterPostsByExcludedTags(activeSlot.posts, excludedTags).length : 0}
-              />
             </div>
           )}
           {renderBody()}
