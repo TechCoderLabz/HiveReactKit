@@ -9,6 +9,7 @@ import { useCallback, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import type { Post } from '@/types/post';
 import SnapsFeedCard from './SnapsFeedCard';
+import { WindowedList, FEED_RENDER_WINDOW_SIZE } from '../common/WindowedList';
 import type { SnapsFeedCardProps } from './SnapsFeedCard';
 
 export interface SnapsFeedListProps
@@ -19,6 +20,8 @@ export interface SnapsFeedListProps
   hasMore?: boolean;
   onLoadMore?: () => void;
   emptyMessage?: string;
+  /** Max cards mounted in the DOM at once (data is never trimmed). Default 50. */
+  renderWindowSize?: number;
 }
 
 const Skeleton = () => (
@@ -62,6 +65,8 @@ function findScrollAncestor(el: HTMLElement | null): Element | null {
   return null;
 }
 
+const snapKey = (p: Post) => `${p.author}/${p.permlink}`;
+
 const SnapsFeedList = ({
   posts,
   loading,
@@ -69,6 +74,7 @@ const SnapsFeedList = ({
   hasMore,
   onLoadMore,
   emptyMessage = 'Nothing to show.',
+  renderWindowSize = FEED_RENDER_WINDOW_SIZE,
   ...cardProps
 }: SnapsFeedListProps) => {
   // Hold the latest values in refs so the IntersectionObserver callback
@@ -177,14 +183,19 @@ const SnapsFeedList = ({
 
   return (
     <div className="space-y-3">
-      {posts.map((post) => (
-        <SnapsFeedCard
-          key={`${post.author}/${post.permlink}`}
-          post={post}
-          contextPosts={cardProps.contextPosts || posts}
-          {...cardProps}
-        />
-      ))}
+      <WindowedList
+        items={posts}
+        windowSize={renderWindowSize}
+        gap={12}
+        getKey={snapKey}
+        renderItem={(post) => (
+          <SnapsFeedCard
+            post={post}
+            contextPosts={cardProps.contextPosts || posts}
+            {...cardProps}
+          />
+        )}
+      />
 
       {/* Sentinel + spinner. The empty <div> is what the
           IntersectionObserver watches; the spinner only appears while
