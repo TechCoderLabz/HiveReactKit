@@ -3,6 +3,9 @@ import { apiService } from '@/services/apiService';
 import { Discussion } from '@/types/comment';
 import { Loader2, AlertCircle, RefreshCw, MessageCirclePlus } from 'lucide-react';
 import CommentTile from './comments/CommentTile';
+import { WindowedList, FEED_RENDER_WINDOW_SIZE } from './common/WindowedList';
+
+const commentKey = (c: Discussion) => `${c.author}/${c.permlink}`;
 import AddCommentInput from './comments/AddCommentInput';
 import { toast } from '@/hooks';
 import type { ThreeSpeakPlayerInjectedProps } from './ThreeSpeakPlayer';
@@ -19,6 +22,8 @@ interface CommentsListProps {
   onClickCommentReply?: (comment: Discussion) => void;
   /** Forwarded to each `<CommentTile/>` — see its own `ThreeSpeakPlayerComponent` prop doc. */
   ThreeSpeakPlayerComponent?: React.ComponentType<ThreeSpeakPlayerInjectedProps>;
+  /** Max top-level comment threads mounted in the DOM at once (data is never trimmed). Default 50. */
+  renderWindowSize?: number;
 }
 
 export function CommentsList({
@@ -32,6 +37,7 @@ export function CommentsList({
   onClickCommentUpvote,
   onClickCommentReply,
   ThreeSpeakPlayerComponent,
+  renderWindowSize = FEED_RENDER_WINDOW_SIZE,
 }: CommentsListProps) {
   const [comments, setComments] = useState<Discussion[]>([]);
   const [filteredComments, setFilteredComments] = useState<Discussion[]>([]);
@@ -217,10 +223,14 @@ export function CommentsList({
           )}
         </div>
       ) : (
-        <div className="space-y-4">
-          {topLevelComments.map((comment) => (
+        <WindowedList
+          items={topLevelComments}
+          windowSize={renderWindowSize}
+          gap={16}
+          estimatedItemHeight={180}
+          getKey={commentKey}
+          renderItem={(comment) => (
             <CommentTile
-              key={comment.permlink}
               comment={comment}
               allComments={filteredComments}
               onReply={handleReply}
@@ -234,8 +244,8 @@ export function CommentsList({
               onClickCommentReply={onClickCommentReply}
               onClickUpvoteButton={onClickUpvoteButton}
             />
-          ))}
-        </div>
+          )}
+        />
       )}
     </div>
   );
