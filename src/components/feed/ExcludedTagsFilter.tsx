@@ -18,6 +18,7 @@
  *   window event, so a header button and the feed share one list.
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { EyeOff, Plus, X, ChevronDown } from 'lucide-react';
 import type { Post } from '@/types/post';
 
@@ -223,7 +224,19 @@ export function MutedTagsButton({ tags: tagsProp, onChange, hiddenCount: hiddenP
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const dialogId = useId();
+  // Below 640px the panel is a bottom sheet portalled to <body>, so a host
+  // toolbar with backdrop-filter/overflow can't trap the fixed positioning.
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.('(max-width: 639px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia?.('(max-width: 639px)');
+    if (!mq) return;
+    const h = () => setNarrow(mq.matches);
+    h();
+    mq.addEventListener?.('change', h);
+    return () => mq.removeEventListener?.('change', h);
+  }, []);
 
   const close = useCallback((refocus = true) => {
     setOpen(false);
@@ -233,7 +246,9 @@ export function MutedTagsButton({ tags: tagsProp, onChange, hiddenCount: hiddenP
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent | TouchEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) close(false);
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t) || sheetRef.current?.contains(t)) return;
+      close(false);
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
     document.addEventListener('mousedown', onDown);
@@ -246,6 +261,26 @@ export function MutedTagsButton({ tags: tagsProp, onChange, hiddenCount: hiddenP
     };
   }, [open, close]);
 
+  const dialog = (
+          <div
+            id={dialogId}
+            role="dialog"
+            aria-label="Muted tags"
+            ref={sheetRef}
+            className={narrow
+              ? 'fixed inset-x-0 bottom-0 z-[1001] max-h-[70vh] overflow-y-auto rounded-t-2xl border border-[var(--hrk-border-default)] bg-[var(--hrk-bg-surface)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-left shadow-2xl'
+              : 'absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-[var(--hrk-border-default)] bg-[var(--hrk-bg-surface)] p-3 text-left shadow-2xl'}
+          >
+            <div className="mb-2 flex items-center gap-2">
+              <EyeOff className="h-4 w-4 text-[var(--hrk-text-tertiary)]" />
+              <span className="text-sm font-semibold text-[var(--hrk-text-primary)]">Muted tags</span>
+              <button type="button" onClick={() => close()} aria-label="Close muted tags" className="ml-auto rounded p-1 text-[var(--hrk-text-tertiary)] hover:text-[var(--hrk-text-primary)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--hrk-brand)]">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <ExcludedTagsPanel tags={tags} onChange={setTags} hiddenCount={hiddenCount} autoFocus />
+          </div>
+  );
   const label = tags.length > 0 ? `Muted tags (${tags.length})` : 'Muted tags';
   return (
     <div ref={wrapRef} className="relative shrink-0" data-testid="muted-tags-button">
@@ -267,25 +302,13 @@ export function MutedTagsButton({ tags: tagsProp, onChange, hiddenCount: hiddenP
           </span>
         )}
       </button>
-      {open && (
+      {open && !narrow && dialog}
+      {open && narrow && typeof document !== 'undefined' && createPortal(
         <>
-          <div className="fixed inset-0 z-40 bg-black/50 sm:hidden" aria-hidden="true" onClick={() => close(false)} />
-          <div
-            id={dialogId}
-            role="dialog"
-            aria-label="Muted tags"
-            className="fixed inset-x-0 bottom-0 z-50 max-h-[70vh] overflow-y-auto rounded-t-2xl border border-[var(--hrk-border-default)] bg-[var(--hrk-bg-surface)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-left shadow-2xl sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:rounded-xl sm:p-3"
-          >
-            <div className="mb-2 flex items-center gap-2">
-              <EyeOff className="h-4 w-4 text-[var(--hrk-text-tertiary)]" />
-              <span className="text-sm font-semibold text-[var(--hrk-text-primary)]">Muted tags</span>
-              <button type="button" onClick={() => close()} aria-label="Close muted tags" className="ml-auto rounded p-1 text-[var(--hrk-text-tertiary)] hover:text-[var(--hrk-text-primary)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--hrk-brand)]">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <ExcludedTagsPanel tags={tags} onChange={setTags} hiddenCount={hiddenCount} autoFocus />
-          </div>
-        </>
+          <div className="fixed inset-0 z-[1000] bg-black/50" aria-hidden="true" onClick={() => close(false)} />
+            {dialog}
+        </>,
+        document.body,
       )}
     </div>
   );
