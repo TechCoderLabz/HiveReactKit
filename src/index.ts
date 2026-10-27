@@ -9,6 +9,7 @@ export {
   SUPPORTER_PULSE_PERIOD_MS,
   type SupporterTier,
   type SupporterTierMap,
+  type SupporterTierPressHandler,
 } from './context/SupporterTierContext';
 
 // Reply/comment draft autosave — host provides the storage adapter; opt-in

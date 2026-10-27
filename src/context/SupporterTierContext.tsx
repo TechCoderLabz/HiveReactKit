@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 
 export type SupporterTier = 'silver' | 'gold' | 'platinum';
 export type SupporterTierMap = Record<string, SupporterTier>;
@@ -29,20 +29,27 @@ export const SUPPORTER_PULSE_PERIOD_MS: Record<SupporterTier, number> = {
   platinum: 1000,
 };
 
+/** Called when a supporter pill is tapped. Omit it to keep pills non-interactive. */
+export type SupporterTierPressHandler = (tier: SupporterTier) => void;
+
 interface SupporterTierContextValue {
   tierMap: SupporterTierMap;
+  onTierPress?: SupporterTierPressHandler;
 }
 
 const SupporterTierContext = createContext<SupporterTierContextValue>({ tierMap: {} });
 
 export function SupporterTierProvider({
   tierMap,
+  onTierPress,
   children,
 }: {
   tierMap: SupporterTierMap;
+  /** Optional: makes every SupporterTierPill a button that calls this. Leave undefined for plain badges. */
+  onTierPress?: SupporterTierPressHandler;
   children: ReactNode;
 }) {
-  const value = useMemo(() => ({ tierMap }), [tierMap]);
+  const value = useMemo(() => ({ tierMap, onTierPress }), [tierMap, onTierPress]);
   return (
     <SupporterTierContext.Provider value={value}>
       {children}
@@ -76,17 +83,56 @@ const TIER_LABEL: Record<SupporterTier, string> = {
   platinum: 'Platinum supporter',
 };
 
-/** Small "Gold supporter" pill shown next to a name (profile header, post header). */
+const TIER_SHORT_LABEL: Record<SupporterTier, string> = {
+  silver: 'Silver',
+  gold: 'Gold',
+  platinum: 'Platinum',
+};
+
+/**
+ * Small "★ Gold" pill shown next to a name (profile header, post header, inbox rows).
+ * Always one line and never shrinks. The visible text is just the tier name at every
+ * breakpoint; the full "Gold supporter" stays in title / aria-label for accessibility.
+ */
 export function SupporterTierPill({ tier, className = '' }: { tier: SupporterTier | undefined; className?: string }) {
+  const { onTierPress } = useContext(SupporterTierContext);
   if (!tier) return null;
+  const base = `inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none sm:text-[11px] ${TIER_BADGE[tier]} ${className}`;
+  const content = (
+    <>
+      <span aria-hidden>★</span>
+      <span aria-hidden>{TIER_SHORT_LABEL[tier]}</span>
+    </>
+  );
+  if (!onTierPress) {
+    return (
+      <span data-supporter-tier={tier} className={base} title={TIER_LABEL[tier]} aria-label={TIER_LABEL[tier]}>
+        {content}
+      </span>
+    );
+  }
+  // span[role=button] (not <button>) so it is valid inside row buttons/links.
+  const press = (e: MouseEvent | KeyboardEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onTierPress(tier);
+  };
   return (
     <span
       data-supporter-tier={tier}
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none sm:text-[11px] ${TIER_BADGE[tier]} ${className}`}
+      role="button"
+      tabIndex={0}
+      className={`${base} cursor-pointer hover:brightness-125 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60`}
       title={TIER_LABEL[tier]}
+      aria-label={TIER_LABEL[tier]}
+      aria-haspopup="dialog"
+      onClick={press}
+      onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') press(e);
+      }}
     >
-      <span aria-hidden>★</span>
-      {TIER_LABEL[tier]}
+      {content}
     </span>
   );
 }

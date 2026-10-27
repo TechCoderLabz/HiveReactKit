@@ -3349,7 +3349,7 @@ export function HiveDetailPost({
                 >
                   {web2Identity.isWeb2 ? web2Identity.displayName : `@${post.author}`}
                 </HiveLink>
-                {!web2Identity.isWeb2 && <SupporterTierPill tier={supporterTierMap[post.author]} className="hidden sm:inline-flex" />}
+                {!web2Identity.isWeb2 && <SupporterTierPill tier={supporterTierMap[post.author]} />}
                 {post.author_reputation !== undefined && (
                   <div className="relative group inline-flex shrink-0">
                     <span
