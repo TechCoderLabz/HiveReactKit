@@ -1,5 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ThumbsUp, X, Loader2 } from "lucide-react";
+
+/** One account the user can vote from (multi-account vote picker). */
+export interface VoteAccountOption {
+  username: string;
+  /** This account already voted on the post — shown disabled. */
+  alreadyVoted?: boolean;
+}
 
 export function VoteSlider({
   author,
@@ -9,13 +16,17 @@ export function VoteSlider({
   onCancel,
   awaitingWalletApproval = false,
   walletApprovalLabel = 'Open Keychain App & Approve',
+  voteAccounts,
+  defaultSelectedAccounts,
 }: {
   author: string;
   permlink: string;
   defaultValue?: number;
   /** Slider precision. Use 0.25, 0.5, or 1 (default 1). */
   step?: number;
-  onUpvote: (percent: number) => Promise<void> | void; // allow async
+  /** `accounts` is only passed when the multi-account picker is shown
+   *  (more than one entry in `voteAccounts`). */
+  onUpvote: (percent: number, accounts?: string[]) => Promise<unknown> | void; // allow async
   onCancel: () => void;
   /** Set true when the logged-in user is on a wallet provider
    *  (Keychain, HiveAuth, PeakVault). While the broadcast is in
@@ -24,7 +35,27 @@ export function VoteSlider({
   awaitingWalletApproval?: boolean;
   /** Override for the wallet-approval hint text. */
   walletApprovalLabel?: string;
+  /** Logged-in Hive accounts the user can vote from. With 2+ entries the
+   *  slider shows an "All accounts" / per-account picker; with 0–1 it
+   *  behaves exactly like the single-account slider. */
+  voteAccounts?: VoteAccountOption[];
+  /** Accounts pre-checked when the picker opens (default: the first
+   *  account that hasn't voted yet). */
+  defaultSelectedAccounts?: string[];
 }) {
+  const multi = (voteAccounts?.length ?? 0) > 1;
+  const eligible = useMemo(
+    () => (voteAccounts ?? []).filter((a) => !a.alreadyVoted).map((a) => a.username),
+    [voteAccounts],
+  );
+  const [selected, setSelected] = useState<string[]>(() => {
+    const wanted = (defaultSelectedAccounts ?? []).filter((u) => eligible.includes(u));
+    return wanted.length > 0 ? wanted : eligible.slice(0, 1);
+  });
+  const allSelected = eligible.length > 0 && eligible.every((u) => selected.includes(u));
+  const toggleAccount = (username: string) =>
+    setSelected((prev) => (prev.includes(username) ? prev.filter((u) => u !== username) : [...prev, username]));
+  const toggleAll = () => setSelected(allSelected ? [] : eligible);
   // Slider's lower bound matches the configured step — 0.25 → 0.25%,
   // 0.5 → 0.5%, 1 → 1%. Was hardcoded to 1, which trapped fractional-
   // step users above 1% once they dragged up past it.
@@ -36,9 +67,12 @@ export function VoteSlider({
 
   const handleVoteClick = async () => {
     if (percent === 0 || loading) return;
+    if (multi && selected.length === 0) return;
     setLoading(true);
     try {
-      await onUpvote(percent); // wait until API resolves
+      // Keep the picker's display order (not click order) for the broadcast sequence.
+      const accounts = multi ? (voteAccounts ?? []).map((a) => a.username).filter((u) => selected.includes(u)) : undefined;
+      await onUpvote(percent, accounts); // wait until API resolves
     } finally {
       setLoading(false);
     }
@@ -113,15 +147,67 @@ export function VoteSlider({
           </div>
         </div>
 
+        {/* Multi-account picker — only when 2+ Hive accounts are logged in. */}
+        {multi && (
+          <div className="mb-5" data-testid="vote-account-picker">
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wide text-[var(--hrk-text-secondary)]">Vote from</span>
+              <span className="text-xs text-[var(--hrk-text-tertiary)]">
+                {selected.length} of {voteAccounts!.length} selected
+              </span>
+            </div>
+            <div className="max-h-48 overflow-y-auto rounded-xl border border-[var(--hrk-border-default)] divide-y divide-[var(--hrk-border-default)]">
+              <label className={`flex items-center gap-3 px-3 py-2 ${eligible.length === 0 ? 'opacity-50' : 'cursor-pointer hover:bg-[var(--hrk-bg-hover)]'}`}>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-[var(--hrk-brand)]"
+                  checked={allSelected}
+                  ref={(el) => { if (el) el.indeterminate = !allSelected && selected.length > 0; }}
+                  disabled={eligible.length === 0 || loading}
+                  onChange={toggleAll}
+                  aria-label="All accounts"
+                />
+                <span className="text-sm font-medium text-[var(--hrk-text-primary)]">All accounts</span>
+                <span className="ml-auto text-xs tabular-nums text-[var(--hrk-text-tertiary)]">{eligible.length}</span>
+              </label>
+              {voteAccounts!.map((a) => (
+                <label
+                  key={a.username}
+                  className={`flex items-center gap-3 px-3 py-2 ${a.alreadyVoted ? 'opacity-50' : 'cursor-pointer hover:bg-[var(--hrk-bg-hover)]'}`}
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-[var(--hrk-brand)]"
+                    checked={!a.alreadyVoted && selected.includes(a.username)}
+                    disabled={a.alreadyVoted || loading}
+                    onChange={() => toggleAccount(a.username)}
+                    aria-label={`Vote from @${a.username}`}
+                  />
+                  <img
+                    src={`https://images.hive.blog/u/${a.username}/avatar/small`}
+                    alt=""
+                    className="h-6 w-6 shrink-0 rounded-full bg-[var(--hrk-bg-hover)] object-cover"
+                    loading="lazy"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm text-[var(--hrk-text-primary)]">@{a.username}</span>
+                  {a.alreadyVoted && (
+                    <span className="shrink-0 text-[11px] text-[var(--hrk-text-tertiary)]">already voted</span>
+                  )}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Buttons */}
         <div className="flex gap-3">
           <button
             onClick={handleVoteClick}
-            disabled={percent === 0 || loading}
+            disabled={percent === 0 || loading || (multi && selected.length === 0)}
             className={`flex-1 flex items-center justify-center rounded-full font-semibold transition
               text-sm sm:text-base px-3 py-2 sm:px-4 sm:py-3 shadow
               ${
-                percent === 0 || loading
+                percent === 0 || loading || (multi && selected.length === 0)
                   ? "bg-[var(--hrk-bg-surface-raised)] text-[var(--hrk-text-tertiary)] cursor-not-allowed"
                   : "bg-[var(--hrk-brand)] hover:bg-[var(--hrk-brand-hover)] text-white"
               }`}
@@ -134,7 +220,7 @@ export function VoteSlider({
             ) : (
               <>
                 <ThumbsUp className="w-4 h-4 sm:w-5 sm:h-5 mr-1" />
-                Vote
+                {multi && selected.length > 1 ? `Vote ×${selected.length}` : 'Vote'}
               </>
             )}
           </button>

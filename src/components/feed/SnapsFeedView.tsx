@@ -177,7 +177,10 @@ export interface SnapsFeedViewProps {
   observer?: string;
 
   // ── BlogPostList action callbacks (forwarded per column) ──────────────
-  onUpvote?: (author: string, permlink: string, percent: number) => void | Promise<void>;
+  onUpvote?: (author: string, permlink: string, percent: number, accounts?: string[]) => void | Promise<void | { voted?: string[] }>;
+  /** Logged-in Hive accounts the user can vote from — 2+ entries enable the
+   *  multi-account vote picker on every card. */
+  voteAccounts?: string[];
   onSubmitComment?: (parentAuthor: string, parentPermlink: string, body: string) => void | boolean | Promise<void | boolean>;
   onClickCommentUpvote?: (author: string, permlink: string, percent: number) => void | Promise<void>;
   onReblog?: (author: string, permlink: string) => void;
@@ -410,6 +413,7 @@ export function SnapsFeedView({
   currentUser,
   observer,
   onUpvote,
+  voteAccounts,
   onSubmitComment,
   onClickCommentUpvote,
   onReblog,
@@ -613,6 +617,7 @@ export function SnapsFeedView({
     currentUser,
     observer,
     onUpvote,
+    voteAccounts,
     onSubmitComment,
     onClickCommentUpvote,
     onReblog,
