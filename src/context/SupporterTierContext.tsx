@@ -83,11 +83,11 @@ const TIER_SHORT_LABEL: Record<SupporterTier, string> = {
 };
 
 /**
- * Small "Gold supporter" pill shown next to a name (profile header, post header, inbox rows).
- * Always one line and never shrinks; below `sm` it collapses to "★ Gold" so it fits narrow rows.
- * Pass `compact={false}` to always show the full label.
+ * Small "★ Gold" pill shown next to a name (profile header, post header, inbox rows).
+ * Always one line and never shrinks. The visible text is just the tier name at every
+ * breakpoint; the full "Gold supporter" stays in title / aria-label for accessibility.
  */
-export function SupporterTierPill({ tier, className = '', compact = true }: { tier: SupporterTier | undefined; className?: string; compact?: boolean }) {
+export function SupporterTierPill({ tier, className = '' }: { tier: SupporterTier | undefined; className?: string }) {
   if (!tier) return null;
   return (
     <span
@@ -97,14 +97,7 @@ export function SupporterTierPill({ tier, className = '', compact = true }: { ti
       aria-label={TIER_LABEL[tier]}
     >
       <span aria-hidden>★</span>
-      {compact ? (
-        <>
-          <span aria-hidden className="sm:hidden">{TIER_SHORT_LABEL[tier]}</span>
-          <span aria-hidden className="hidden sm:inline">{TIER_LABEL[tier]}</span>
-        </>
-      ) : (
-        <span aria-hidden>{TIER_LABEL[tier]}</span>
-      )}
+      <span aria-hidden>{TIER_SHORT_LABEL[tier]}</span>
     </span>
   );
 }
