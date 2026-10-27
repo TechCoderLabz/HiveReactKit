@@ -4760,14 +4760,14 @@ const UserDetailProfile: React.FC<UserDetailProfileProps> = ({
             {/* Name inline */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-sm font-semibold text-white truncate">
+                <h1 className="min-w-0 text-sm font-semibold text-white truncate">
                   {isWeb3User
                     ? `${profile.name || targetUsername} (Web3 Account)`
                     : isWeb2User && profile.name
                     ? `${profile.name} (Web2 Account)`
                     : `@${targetUsername}`}
                 </h1>
-                <SupporterTierPill tier={tierMap[targetUsername]} className="hidden min-[400px]:inline-flex shrink-0" />
+                <SupporterTierPill tier={tierMap[targetUsername]} />
               </div>
             </div>
 

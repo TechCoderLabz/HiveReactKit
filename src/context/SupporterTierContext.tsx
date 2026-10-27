@@ -76,17 +76,35 @@ const TIER_LABEL: Record<SupporterTier, string> = {
   platinum: 'Platinum supporter',
 };
 
-/** Small "Gold supporter" pill shown next to a name (profile header, post header). */
-export function SupporterTierPill({ tier, className = '' }: { tier: SupporterTier | undefined; className?: string }) {
+const TIER_SHORT_LABEL: Record<SupporterTier, string> = {
+  silver: 'Silver',
+  gold: 'Gold',
+  platinum: 'Platinum',
+};
+
+/**
+ * Small "Gold supporter" pill shown next to a name (profile header, post header, inbox rows).
+ * Always one line and never shrinks; below `sm` it collapses to "★ Gold" so it fits narrow rows.
+ * Pass `compact={false}` to always show the full label.
+ */
+export function SupporterTierPill({ tier, className = '', compact = true }: { tier: SupporterTier | undefined; className?: string; compact?: boolean }) {
   if (!tier) return null;
   return (
     <span
       data-supporter-tier={tier}
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none sm:text-[11px] ${TIER_BADGE[tier]} ${className}`}
+      className={`inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none sm:text-[11px] ${TIER_BADGE[tier]} ${className}`}
       title={TIER_LABEL[tier]}
+      aria-label={TIER_LABEL[tier]}
     >
       <span aria-hidden>★</span>
-      {TIER_LABEL[tier]}
+      {compact ? (
+        <>
+          <span aria-hidden className="sm:hidden">{TIER_SHORT_LABEL[tier]}</span>
+          <span aria-hidden className="hidden sm:inline">{TIER_LABEL[tier]}</span>
+        </>
+      ) : (
+        <span aria-hidden>{TIER_LABEL[tier]}</span>
+      )}
     </span>
   );
 }
