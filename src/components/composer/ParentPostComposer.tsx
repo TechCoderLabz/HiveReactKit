@@ -420,7 +420,7 @@ export interface ParentPostComposerProps {
   includeAppSuffix?: boolean;
   /** Callback when the "Posted via HiveSuite" toggle state changes */
   onIncludeAppSuffixChange?: (include: boolean) => void;
-  /** Custom label for the app suffix toggle (default "Posted via HiveSuite") */
+  /** Custom label for the app suffix toggle (default "via HiveSuite") */
   appSuffixLabel?: string;
 }
 
@@ -582,7 +582,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
   defaultIncludeAppSuffix = true,
   includeAppSuffix: controlledIncludeAppSuffix,
   onIncludeAppSuffixChange,
-  appSuffixLabel = 'Posted via HiveSuite',
+  appSuffixLabel = 'via HiveSuite',
 }) => {
   const hideAudio = hideAudioProp;
   const hideVideo = hideVideoProp;
