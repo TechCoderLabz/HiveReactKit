@@ -298,6 +298,13 @@ export function extractTagsFromMeta(post: Post): string[] {
 export function stripViaAppsCredit(body: string): string {
   if (!body || typeof body !== 'string') return body ?? '';
   return body
+    // Current HiveSuite signature: `<sub>[via HiveSuite](url)</sub>` (the whole
+    // text is the link). Also matches `[Posted via HiveSuite](url)`.
+    .replace(
+      /\s*(?:<br\s*\/?>)?\s*(?:<sub>)?\s*\[\s*(?:Posted\s+)?(?:via|using)\s+HiveSuite\s*\]\([^)]*\)\s*(?:<\/sub>)?\s*$/i,
+      '',
+    )
+    // Legacy HiveSuite signature: `<sub>Posted via [HiveSuite](url)</sub>`.
     .replace(
       /\s*(?:<br\s*\/?>)?\s*<sub>\s*Posted (?:via|using)\s*\[?HiveSuite\]?\([^)]*\)\s*<\/sub>\s*$/i,
       '',
