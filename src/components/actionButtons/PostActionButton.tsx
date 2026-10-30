@@ -22,6 +22,7 @@ import { getHiveApiEndpoint } from "@/config/hiveEndpoint";
 import { isPostTooOldToVote, VOTE_WINDOW_MESSAGE } from "@/utils/voteAge";
 import { postHasDownvotes, isDownvote, isRestrictedDirectVoter } from "@/utils/postVotes";
 import { MoreActionsMenu } from "./MoreActionsMenu";
+import { useVoteAccountsContext, voteAccountsForAuthor } from "@/context/VoteAccountsContext";
 
 export interface PostActionButtonProps {
   author: string;
@@ -423,9 +424,15 @@ export function PostActionButton({
 
   // Multi-account vote picker: only when 2+ distinct Hive accounts are
   // logged in. Each option knows whether that account already voted.
+  // Explicit `voteAccounts` prop wins; otherwise fall back to the app-wide
+  // VoteAccountsProvider (excluded authors get no picker).
+  const voteCtx = useVoteAccountsContext();
+  const ctxAccounts = voteAccountsForAuthor(voteCtx, author);
+  const usingCtxAccounts = !(voteAccounts && voteAccounts.length > 1) && ctxAccounts.length > 1;
+  const effectiveVoteAccounts = usingCtxAccounts ? ctxAccounts : voteAccounts;
   const voteAccountOptions = useMemo(() => {
     const seen = new Set<string>();
-    const list = (voteAccounts ?? [])
+    const list = (effectiveVoteAccounts ?? [])
       .map((u) => u.trim().toLowerCase())
       .filter((u) => u && !seen.has(u) && (seen.add(u), true));
     if (list.length < 2) return undefined;
@@ -438,7 +445,7 @@ export function PostActionButton({
       username,
       alreadyVoted: votes.some((v) => v.voter.toLowerCase() === username && !isDownvote(v)),
     }));
-  }, [voteAccounts, votes, currentUser]);
+  }, [effectiveVoteAccounts, votes, currentUser]);
   const isMultiVote = !!voteAccountOptions;
   const allAccountsVoted = isMultiVote && voteAccountOptions!.every((a) => a.alreadyVoted);
 
@@ -601,10 +608,15 @@ export function PostActionButton({
   };
 
   const handleVoteSubmit = async (percent: number, accounts?: string[]) => {
-    if (!onUpvote) return;
+    const viaCtx = isMultiVote && usingCtxAccounts && !!voteCtx?.voteFromAccounts && !!accounts?.length;
+    if (!onUpvote && !viaCtx) return;
     setVoteLoading(true);
     try {
-      const result = await Promise.resolve(onUpvote(percent, isMultiVote ? accounts : undefined));
+      // Context-driven picker: the host's voteFromAccounts handles every
+      // selected account (intermediate list components drop `accounts`).
+      const result = viaCtx
+        ? await voteCtx!.voteFromAccounts!(author, permlink, percent, accounts!)
+        : await Promise.resolve(onUpvote!(percent, isMultiVote ? accounts : undefined));
       setShowVoteSlider(false);
       // Multi-account: the consumer toasts per account (success / failed /
       // already voted), so no generic toast here.

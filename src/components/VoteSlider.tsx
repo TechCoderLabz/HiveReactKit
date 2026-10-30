@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ThumbsUp, X, Loader2 } from "lucide-react";
+import { useVoteAccountsContext, voteAccountsForAuthor } from "@/context/VoteAccountsContext";
 
 /** One account the user can vote from (multi-account vote picker). */
 export interface VoteAccountOption {
@@ -10,6 +11,7 @@ export interface VoteAccountOption {
 
 export function VoteSlider({
   author,
+  permlink,
   defaultValue = 100,
   step = 1,
   onUpvote,
@@ -43,6 +45,16 @@ export function VoteSlider({
    *  account that hasn't voted yet). */
   defaultSelectedAccounts?: string[];
 }) {
+  // No explicit `voteAccounts` (comments, replies, upvote list): fall back to
+  // the app-wide VoteAccountsProvider and route multi-account votes there.
+  const voteCtx = useVoteAccountsContext();
+  const ctxOptions = useMemo<VoteAccountOption[] | undefined>(() => {
+    if (voteAccounts !== undefined) return undefined;
+    const list = voteAccountsForAuthor(voteCtx, author);
+    return list.length > 1 ? list.map((username) => ({ username })) : undefined;
+  }, [voteAccounts, voteCtx, author]);
+  const usingCtx = !!ctxOptions;
+  voteAccounts = voteAccounts ?? ctxOptions;
   const multi = (voteAccounts?.length ?? 0) > 1;
   const eligible = useMemo(
     () => (voteAccounts ?? []).filter((a) => !a.alreadyVoted).map((a) => a.username),
@@ -72,7 +84,12 @@ export function VoteSlider({
     try {
       // Keep the picker's display order (not click order) for the broadcast sequence.
       const accounts = multi ? (voteAccounts ?? []).map((a) => a.username).filter((u) => selected.includes(u)) : undefined;
-      await onUpvote(percent, accounts); // wait until API resolves
+      if (usingCtx && accounts && voteCtx?.voteFromAccounts) {
+        await voteCtx.voteFromAccounts(author, permlink, percent, accounts);
+        onCancel(); // close the slider; the host toasts per account
+      } else {
+        await onUpvote(percent, accounts); // wait until API resolves
+      }
     } finally {
       setLoading(false);
     }
