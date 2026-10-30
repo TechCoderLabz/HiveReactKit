@@ -49,7 +49,12 @@ export interface SnapsFeedCardProps {
    */
   observer?: string;
 
-  onUpvote?: (author: string, permlink: string, percent: number) => void | Promise<void>;
+  /** `accounts` is set only when the multi-account picker was used
+   *  (see `voteAccounts`). */
+  onUpvote?: (author: string, permlink: string, percent: number, accounts?: string[]) => void | Promise<void | { voted?: string[] }>;
+  /** Logged-in Hive accounts the user can vote from. 2+ entries turn on
+   *  the "All accounts" / per-account picker in the vote slider. */
+  voteAccounts?: string[];
   onSubmitComment?: (parentAuthor: string, parentPermlink: string, body: string) => void | boolean | Promise<void | boolean>;
   onClickCommentUpvote?: (author: string, permlink: string, percent: number) => void | Promise<void>;
   onReblog?: (author: string, permlink: string) => void;
@@ -320,6 +325,7 @@ const SnapsFeedCard: FC<SnapsFeedCardProps> = ({
   currentUser,
   observer: observerProp,
   onUpvote,
+  voteAccounts,
   onSubmitComment,
   onClickCommentUpvote,
   onReblog,
@@ -934,7 +940,8 @@ const SnapsFeedCard: FC<SnapsFeedCardProps> = ({
           initialFlagWeight={(post as { stats?: { flag_weight?: number } }).stats?.flag_weight}
           initialCommentsCount={post.children || 0}
           postCreatedAt={post.created}
-          onUpvote={onUpvote ? (percent) => onUpvote(post.author, post.permlink, percent) : undefined}
+          onUpvote={onUpvote ? (percent, accounts) => onUpvote(post.author, post.permlink, percent, accounts) : undefined}
+          voteAccounts={voteAccounts}
           onSubmitComment={onSubmitComment ? (pAuthor, pPermlink, body) => onSubmitComment(pAuthor, pPermlink, body) : undefined}
           onClickCommentUpvote={onClickCommentUpvote}
           onReblog={!onReSnap && onReblog ? () => onReblog(post.author, post.permlink) : undefined}

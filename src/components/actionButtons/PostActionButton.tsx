@@ -22,6 +22,7 @@ import { getHiveApiEndpoint } from "@/config/hiveEndpoint";
 import { isPostTooOldToVote, VOTE_WINDOW_MESSAGE } from "@/utils/voteAge";
 import { postHasDownvotes, isDownvote, isRestrictedDirectVoter } from "@/utils/postVotes";
 import { MoreActionsMenu } from "./MoreActionsMenu";
+import { useVoteAccountsContext, voteAccountsForAuthor } from "@/context/VoteAccountsContext";
 
 export interface PostActionButtonProps {
   author: string;
@@ -56,8 +57,16 @@ export interface PostActionButtonProps {
   initialFlagWeight?: number;
   /** Optional: Pre-loaded comments count from the Post object (item.children). Skips the API call when provided. */
   initialCommentsCount?: number;
-  /** Called when user confirms vote with percent (1–100). Frontend handles signing/broadcast. */
-  onUpvote?: (percent: number) => void | Promise<void>;
+  /** Called when user confirms vote with percent (1–100). Frontend handles signing/broadcast.
+   *  `accounts` is passed only when the multi-account picker was shown
+   *  (`voteAccounts` has 2+ entries): the usernames to vote from. The
+   *  consumer may resolve `{ voted: string[] }` with the accounts that
+   *  actually voted so the count updates optimistically for just those. */
+  onUpvote?: (percent: number, accounts?: string[]) => void | Promise<void | { voted?: string[] }>;
+  /** Logged-in Hive accounts the user can vote from. With 2+ entries the
+   *  vote slider shows an "All accounts" / per-account picker; with 0–1
+   *  the upvote flow is unchanged. */
+  voteAccounts?: string[];
   /** Called when user submits a comment. Frontend handles signing/broadcast.
    *  Return `false` to indicate the operation was cancelled — the composer text will be preserved.
    *  `voteWeight` is non-null when the composer's upvote-on-publish toggle is enabled
@@ -257,6 +266,7 @@ export function PostActionButton({
   postCreatedAt,
   size = 'default',
   isWeb2User = false,
+  voteAccounts,
 }: PostActionButtonProps) {
   const currentUser =
     currentUserProp == null || currentUserProp === ""
@@ -412,6 +422,33 @@ export function PostActionButton({
     !!currentUser &&
     votes.some((v) => v.voter.toLowerCase() === currentUser.toLowerCase());
 
+  // Multi-account vote picker: only when 2+ distinct Hive accounts are
+  // logged in. Each option knows whether that account already voted.
+  // Explicit `voteAccounts` prop wins; otherwise fall back to the app-wide
+  // VoteAccountsProvider (excluded authors get no picker).
+  const voteCtx = useVoteAccountsContext();
+  const ctxAccounts = voteAccountsForAuthor(voteCtx, author);
+  const usingCtxAccounts = !(voteAccounts && voteAccounts.length > 1) && ctxAccounts.length > 1;
+  const effectiveVoteAccounts = usingCtxAccounts ? ctxAccounts : voteAccounts;
+  const voteAccountOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const list = (effectiveVoteAccounts ?? [])
+      .map((u) => u.trim().toLowerCase())
+      .filter((u) => u && !seen.has(u) && (seen.add(u), true));
+    if (list.length < 2) return undefined;
+    // Current account first, then the rest in the given order.
+    if (currentUser) {
+      const me = currentUser.toLowerCase();
+      list.sort((a, b) => (a === me ? -1 : b === me ? 1 : 0));
+    }
+    return list.map((username) => ({
+      username,
+      alreadyVoted: votes.some((v) => v.voter.toLowerCase() === username && !isDownvote(v)),
+    }));
+  }, [effectiveVoteAccounts, votes, currentUser]);
+  const isMultiVote = !!voteAccountOptions;
+  const allAccountsVoted = isMultiVote && voteAccountOptions!.every((a) => a.alreadyVoted);
+
   // A small set of accounts must never broadcast a direct vote from the
   // app at all — see RESTRICTED_DIRECT_VOTE_ACCOUNTS (postVotes.ts). Their
   // voting is handled entirely by backend automation instead, so the vote
@@ -543,8 +580,8 @@ export function PostActionButton({
         void handleRestrictedVoterUpvote();
         return;
       }
-      if (hasVoted) {
-        showToast("You have already upvoted this post");
+      if (isMultiVote ? allAccountsVoted : hasVoted) {
+        showToast(isMultiVote ? "All your accounts have already upvoted this post" : "You have already upvoted this post");
         return;
       }
       if (isPastVoteWindow) {
@@ -570,32 +607,38 @@ export function PostActionButton({
     }
   };
 
-  const handleVoteSubmit = async (percent: number) => {
-    if (!onUpvote) return;
+  const handleVoteSubmit = async (percent: number, accounts?: string[]) => {
+    const viaCtx = isMultiVote && usingCtxAccounts && !!voteCtx?.voteFromAccounts && !!accounts?.length;
+    if (!onUpvote && !viaCtx) return;
     setVoteLoading(true);
     try {
-      await Promise.resolve(onUpvote(percent));
+      // Context-driven picker: the host's voteFromAccounts handles every
+      // selected account (intermediate list components drop `accounts`).
+      const result = viaCtx
+        ? await voteCtx!.voteFromAccounts!(author, permlink, percent, accounts!)
+        : await Promise.resolve(onUpvote!(percent, isMultiVote ? accounts : undefined));
       setShowVoteSlider(false);
-      showToast("Vote submitted successfully");
+      // Multi-account: the consumer toasts per account (success / failed /
+      // already voted), so no generic toast here.
+      if (!isMultiVote) showToast("Vote submitted successfully");
       // Optimistic count bump so the chip reflects the new vote
       // before the chain round-trip lands. `fetchVotes` below will
       // overwrite this with the canonical number once the active
       // votes propagate (~3-6 s on Hive).
-      if (currentUser) {
-        const myVote: ActiveVote = {
-          voter: currentUser,
-          percent: percent * 100,
-          rshares: 1,
-        };
-        setVotes((prev) => {
-          if (prev.some((v) => v.voter.toLowerCase() === currentUser.toLowerCase())) {
-            return prev;
-          }
-          return [...prev, myVote];
-        });
-      }
+      const reported = result && typeof result === 'object' && Array.isArray(result.voted) ? result.voted : undefined;
+      const voters = isMultiVote ? (reported ?? accounts ?? []) : currentUser ? [currentUser] : [];
+      let added = 0;
+      setVotes((prev) => {
+        const next = [...prev];
+        for (const voter of voters) {
+          if (next.some((v) => v.voter.toLowerCase() === voter.toLowerCase())) continue;
+          next.push({ voter, percent: percent * 100, rshares: 1 });
+          added += 1;
+        }
+        return added > 0 ? next : prev;
+      });
       if (initialVoteCount === undefined) {
-        setVoteCount((c) => c + 1);
+        setVoteCount((c) => c + (isMultiVote ? voters.length : 1));
       } else {
         // When the host owns the canonical count, leave it alone —
         // the next feed refresh will reseed it. Bumping locally
@@ -1091,6 +1134,8 @@ export function PostActionButton({
           onUpvote={handleVoteSubmit}
           onCancel={() => setShowVoteSlider(false)}
           awaitingWalletApproval={awaitingWalletApproval}
+          voteAccounts={voteAccountOptions}
+          defaultSelectedAccounts={currentUser ? [currentUser.toLowerCase()] : undefined}
         />
       )}
 

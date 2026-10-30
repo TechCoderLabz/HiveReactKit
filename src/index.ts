@@ -12,6 +12,15 @@ export {
   type SupporterTierPressHandler,
 } from './context/SupporterTierContext';
 
+// Multi-account voting — host provides accounts + a voteFromAccounts handler.
+export {
+  VoteAccountsProvider,
+  useVoteAccountsContext,
+  voteAccountsForAuthor,
+  type VoteAccountsContextValue,
+} from './context/VoteAccountsContext';
+export { VoteSlider as KitVoteSlider, type VoteAccountOption } from './components/VoteSlider';
+
 // Reply/comment draft autosave — host provides the storage adapter; opt-in
 // composers (`replyDraft` prop) restore / autosave / delete through it.
 export {
