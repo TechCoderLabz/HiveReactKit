@@ -146,6 +146,9 @@ export interface DelegationsProps {
     delegatee: string,
     maxRc: string,
   ) => void | boolean | Promise<void | boolean>;
+  /** Called when a delegator/delegatee name is tapped. When omitted the name
+   *  is a plain `/@username` link. */
+  onUserClick?: (username: string) => void;
 }
 
 interface BalanceApiHpResponse {
@@ -343,7 +346,7 @@ const SectionHeader: React.FC<{
   onCreate?: () => void;
   createLabel?: string;
 }> = ({ direction, total, count, search, onSearch, onCreate, createLabel }) => (
-  <div className="flex items-center justify-between gap-3 mb-3 pb-2 border-b border-gray-800/80 min-w-0">
+  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3 pb-2 border-b border-gray-800/80 min-w-0">
     <div className="flex items-center gap-2.5 text-xs sm:text-sm font-bold text-gray-200 min-w-0">
       <span className="w-3.5 h-3.5 rounded-full border-2 border-orange-500 flex items-center justify-center flex-shrink-0">
         <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
@@ -559,7 +562,24 @@ export const Delegations: React.FC<DelegationsProps> = ({
   onDeleteRcDelegation,
   onCreateHpDelegation,
   onCreateRcDelegation,
+  onUserClick,
 }) => {
+  const renderAccount = (account: string) => (
+    <a
+      href={`/@${account}`}
+      onClick={(e) => {
+        if (onUserClick) {
+          e.preventDefault();
+          onUserClick(account);
+        }
+      }}
+      className="flex items-center gap-2.5 min-w-0 flex-1 hover:underline"
+      title={`@${account}`}
+    >
+      <Avatar name={account} size={28} />
+      <span className="text-sm font-semibold text-gray-200 truncate min-w-0">@{account}</span>
+    </a>
+  );
   const [tab, setTab] = useState<DelegationTab>("hp");
   const [bundle, setBundle] = useState<DelegationsBundle>({
     hp: { outgoing: [], incoming: [] },
@@ -746,18 +766,15 @@ export const Delegations: React.FC<DelegationsProps> = ({
   const renderHpRow = (d: HpDelegation, percent: number) => (
     <div
       key={`${d.account}-${d.operation_id ?? ""}`}
-      className="flex items-center justify-between gap-3 py-3 border-b border-gray-800/80 last:border-b-0 hover:bg-gray-850/40 transition-colors px-2 sm:px-3 rounded-md min-w-0"
+      className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 py-3 border-b border-gray-800/80 last:border-b-0 hover:bg-gray-850/40 transition-colors px-2 sm:px-3 rounded-md min-w-0"
     >
-      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-        <Avatar name={d.account} size={28} />
-        <span className="text-sm font-semibold text-gray-200 truncate" title={`@${d.account}`}>
-          @{d.account}
-        </span>
+      <div className="flex items-center gap-2 min-w-0 sm:flex-1">
+        {renderAccount(d.account)}
+        <div className="text-sm font-bold text-gray-100 whitespace-nowrap text-right sm:px-2 flex-shrink-0">
+          {formatHp(d.hp)}
+        </div>
       </div>
-      <div className="text-sm font-bold text-gray-100 whitespace-nowrap text-right px-2">
-        {formatHp(d.hp)}
-      </div>
-      <div className="flex items-center gap-2.5 flex-shrink-0">
+      <div className="flex items-center gap-2.5 flex-shrink-0 pl-[38px] sm:pl-0">
         <RcProgressBar percentage={percent} />
       </div>
     </div>
@@ -783,23 +800,18 @@ export const Delegations: React.FC<DelegationsProps> = ({
     return (
       <div
         key={`${d.account}-${d.operation_id ?? ""}`}
-        className="flex items-center justify-between gap-3 py-3 border-b border-gray-800/80 last:border-b-0 hover:bg-gray-850/40 transition-colors px-2 sm:px-3 rounded-md min-w-0"
+        className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 py-3 border-b border-gray-800/80 last:border-b-0 hover:bg-gray-850/40 transition-colors px-2 sm:px-3 rounded-md min-w-0"
       >
-        {/* Username */}
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          <Avatar name={d.account} size={28} />
-          <span className="text-sm font-semibold text-gray-200 truncate" title={`@${d.account}`}>
-            @{d.account}
-          </span>
+        {/* Delegatee + amount (e.g. @alice · 150.00b RC) — one line on mobile */}
+        <div className="flex items-center gap-2 min-w-0 sm:flex-1">
+          {renderAccount(d.account)}
+          <div className="text-sm font-bold text-gray-100 whitespace-nowrap text-right sm:px-2 flex-shrink-0">
+            {formatBillions(d.max_rc)}
+          </div>
         </div>
 
-        {/* Amount (e.g. 150.00b RC) */}
-        <div className="text-sm font-bold text-gray-100 whitespace-nowrap text-right px-2">
-          {formatBillions(d.max_rc)}
-        </div>
-
-        {/* Progress Bar Pill */}
-        <div className="flex items-center gap-2.5 flex-shrink-0">
+        {/* Progress Bar Pill + actions — own line on mobile, indented under the name */}
+        <div className="flex items-center justify-between sm:justify-start gap-2.5 min-w-0 sm:flex-shrink-0 pl-[38px] sm:pl-0">
           <RcProgressBar
             percentage={pct}
             currentMana={rcData?.currentMana}
@@ -808,7 +820,7 @@ export const Delegations: React.FC<DelegationsProps> = ({
 
           {/* Action Buttons: UPDATE and Delete */}
           {allowEdit && (
-            <div className="flex items-center gap-2 flex-shrink-0 ml-1">
+            <div className="flex items-center gap-2 flex-shrink-0 sm:ml-1">
               {onUpdateRcDelegation && (
                 <button
                   onClick={() => setEditing(d.account)}
