@@ -1513,6 +1513,7 @@ export const Wallet: React.FC<WalletProps> = ({
             onDeleteRcDelegation={onDeleteRcDelegation}
             onCreateHpDelegation={onCreateHpDelegation}
             onCreateRcDelegation={onCreateRcDelegation}
+            onUserClick={onUserClick}
           />
         )}
 
