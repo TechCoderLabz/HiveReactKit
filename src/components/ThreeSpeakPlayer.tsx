@@ -7,6 +7,7 @@
  *      and streams directly with Hls.js & Safari Native HLS.
  */
 import React, { useEffect, useRef, useState } from 'react';
+import { parseVideoAspectRatio } from '../utils/videoAspectRatio';
 import Hls from 'hls.js';
 import { Play, Loader2 } from 'lucide-react';
 
@@ -30,6 +31,9 @@ export interface ThreeSpeakPlayerProps {
    * path (`meta.useIframe`); omit it for anonymous/logged-out playback.
    */
   token?: string;
+  /** Stored ratio from `json_metadata.video.aspectRatio` (e.g. `"9/16"`).
+   *  Sizes the player before 3Speak's own metadata/HLS dimensions arrive. */
+  aspectRatio?: string;
 }
 
 /**
@@ -211,7 +215,8 @@ async function resolveVideoSource(
     if (embedRes.ok) {
       const embedData = await embedRes.json();
       if (embedData && embedData.status !== 'failed' && (embedData.videoUrl || embedData.manifest_cid || embedData.success !== false)) {
-        return { useIframe: true };
+        // `short` marks a vertical 3Speak upload, so the iframe frame can be tall.
+        return { useIframe: true, short: embedData.short === true };
       }
     }
   } catch {
@@ -487,7 +492,9 @@ export function ThreeSpeakPlayer({
   layout = 'desktop',
   id,
   token,
+  aspectRatio: storedAspectRatio,
 }: ThreeSpeakPlayerProps) {
+  const storedRatio = parseVideoAspectRatio(storedAspectRatio);
   const [meta, setMeta] = useState<EmbedMeta | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState<number | null>(null);
@@ -579,14 +586,15 @@ export function ThreeSpeakPlayer({
     };
   }, [meta]);
 
-  const isPortrait = aspectRatio != null ? aspectRatio < 1 : meta?.short === true;
+  const knownRatio = aspectRatio ?? storedRatio;
+  const isPortrait = knownRatio != null ? knownRatio < 1 : meta?.short === true;
   const orientationClass = isPortrait ? 'threeSpeakNativePortrait' : 'threeSpeakNativeLandscape';
   const wrapperClass = `threeSpeakEmbed ${orientationClass}${
     hideThumbnail ? ' threeSpeakNativeNoThumb' : ''
   } ${className}`;
 
   const fallbackRatio = meta?.short === true ? 9 / 16 : 16 / 9;
-  const reservedRatio = aspectRatio ?? (meta ? fallbackRatio : 16 / 9);
+  const reservedRatio = knownRatio ?? (meta ? fallbackRatio : 16 / 9);
   const inlineStyle: React.CSSProperties = {
     maxWidth: isPortrait ? '450px' : '800px',
     margin: '0 auto',
@@ -600,6 +608,7 @@ export function ThreeSpeakPlayer({
 
   // If official 3Speak iframe player is preferred and available
   if (meta?.useIframe) {
+    const iframeRatio = storedRatio ?? (meta.short === true ? 9 / 16 : 16 / 9);
     const embedSrc = build3SpeakEmbedUrl({ author, permlink, videoUrl, autoplay, layout, token });
     if (!embedSrc) {
       return (
@@ -615,9 +624,11 @@ export function ThreeSpeakPlayer({
         id={id}
         className={`threeSpeakEmbed overflow-hidden rounded-xl bg-black w-full relative mx-auto ${className}`}
         style={{
-          aspectRatio: '16 / 9',
+          // Vertical videos (stored ratio, or 3Speak marks them `short`)
+          // get a tall frame instead of being letterboxed inside 16:9.
+          aspectRatio: `${iframeRatio}`,
           width: '100%',
-          maxWidth: '800px',
+          maxWidth: iframeRatio < 1 ? '450px' : '800px',
           margin: '0 auto',
           ...style,
         }}

@@ -1,4 +1,5 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react'
+import { normalizeVideoAspectRatio, rememberVideoAspectRatio } from '../../utils/videoAspectRatio'
 import { Video, X, Loader2, Play, Trash2 } from 'lucide-react'
 import { uploadToHiveImages, type PostingSignMessageFn } from '../../services/hiveImageUpload'
 
@@ -705,6 +706,7 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({
           })
         }
 
+        rememberVideoAspectRatio(result.embedUrl, aspect)
         onVideoUploaded(result.embedUrl, result.uploadUrl, aspect, file)
         resetAll()
       } catch (err) {
@@ -765,7 +767,7 @@ const VideoUploader: React.FC<VideoUploaderProps> = ({
     try {
       const info = await getVideoInfo(file)
       resolvedDuration = info.duration
-      resolvedAspect = info.width && info.height ? `${info.width}/${info.height}` : '16/9'
+      resolvedAspect = normalizeVideoAspectRatio(info.width, info.height)
       setVideoDuration(resolvedDuration)
       setVideoAspectRatio(resolvedAspect)
 

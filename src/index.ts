@@ -133,6 +133,13 @@ export {
   type ClientAppBadgeButtonProps,
 } from './components/common/ClientAppBadgeButton';
 export * from './utils/firstContext';
+export {
+  DEFAULT_VIDEO_ASPECT_RATIO,
+  normalizeVideoAspectRatio,
+  parseVideoAspectRatio,
+  rememberVideoAspectRatio,
+  getVideoAspectRatioForUrl,
+} from './utils/videoAspectRatio';
 export { default as ProposalsList } from './components/ProposalsList';
 export { default as FollowersList } from './components/FollowersList';
 export { default as FollowingList } from './components/FollowingList';
