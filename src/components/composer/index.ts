@@ -19,7 +19,7 @@ export type { VideoUploaderProps, VideoUploadDetails, MintTokenResponse, UploadP
 export { default as GiphyPicker } from './GiphyPicker'
 export type { GiphyPickerProps } from './GiphyPicker'
 
-export { default as YoutubePicker } from './YoutubePicker'
+export { default as YoutubePicker, configureYoutubeSearch } from './YoutubePicker'
 export type { YoutubePickerProps } from './YoutubePicker'
 
 export { default as MemePicker } from './MemePicker'

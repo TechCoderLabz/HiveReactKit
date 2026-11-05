@@ -26,6 +26,18 @@ export interface YoutubePickerProps {
   youtubeApiKey?: string;
 }
 
+/**
+ * Optional server-side search endpoint (e.g. `https://api.hivesuite.app/search/youtube`).
+ * When set, the picker calls `${endpoint}?q=…` (expects `{ items: [{ id, title,
+ * channelTitle, thumbnail }] }`) instead of googleapis.com directly. Needed in
+ * Capacitor apps, whose `capacitor://localhost` origin is rejected by
+ * referrer-restricted browser keys.
+ */
+let youtubeSearchEndpoint: string | undefined;
+export function configureYoutubeSearch(opts: { endpoint?: string }) {
+  youtubeSearchEndpoint = opts.endpoint || undefined;
+}
+
 const YoutubePicker: React.FC<YoutubePickerProps> = ({
   isOpen,
   onClose,
@@ -75,6 +87,16 @@ const YoutubePicker: React.FC<YoutubePickerProps> = ({
     setIsLoading(true);
     setError(null);
     try {
+      if (youtubeSearchEndpoint) {
+        const sep = youtubeSearchEndpoint.includes('?') ? '&' : '?';
+        const r = await fetch(`${youtubeSearchEndpoint}${sep}q=${encodeURIComponent(query)}`, {
+          signal: abortController.signal,
+        });
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(`Failed to search YouTube: ${body?.error || r.statusText}`);
+        setVideos(Array.isArray(body?.items) ? body.items : []);
+        return;
+      }
       const activeKey =
         youtubeApiKey ||
         'AIzaSyD9Ksls8bpblDuUK9UmYVnPO5riHGW3n_8';
