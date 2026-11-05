@@ -1022,14 +1022,9 @@ const PostComposer = ({
     const files = e.dataTransfer.files;
     if (!files || files.length === 0) return;
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (file.type.startsWith('image/')) {
-        if (imageUploaderRef.current) {
-          await imageUploaderRef.current.stageFile(file);
-        }
-        return;
-      }
+    const images = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (images.length && imageUploaderRef.current) {
+      await imageUploaderRef.current.stageFiles(images);
     }
   }, [canUploadImages]);
 
@@ -1352,6 +1347,7 @@ const PostComposer = ({
           <ImageUploader
             ref={imageUploaderRef}
             onImageUploaded={(url) => insertText(`![Image](${url})\n`)}
+            onImagesUploaded={(urls) => insertText(urls.map((url) => `![Image](${url})\n`).join(''))}
             threeSpeakToken={threeSpeakToken}
             encoderUrl={encoderUrl}
             ecencyToken={ecencyToken}
