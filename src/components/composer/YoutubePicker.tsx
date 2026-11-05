@@ -32,10 +32,20 @@ export interface YoutubePickerProps {
  * channelTitle, thumbnail }] }`) instead of googleapis.com directly. Needed in
  * Capacitor apps, whose `capacitor://localhost` origin is rejected by
  * referrer-restricted browser keys.
+ *
+ * The backend requires the same HiveSuite JWT other protected API routes use
+ * (`Authorization: Bearer <token>`). Pass `getAuthToken` so the picker can
+ * attach it — return null/undefined when the user is logged out; the search
+ * then surfaces a login error instead of calling the proxy.
  */
 let youtubeSearchEndpoint: string | undefined;
-export function configureYoutubeSearch(opts: { endpoint?: string }) {
+let youtubeSearchGetAuthToken: (() => string | null | undefined) | undefined;
+export function configureYoutubeSearch(opts: {
+  endpoint?: string;
+  getAuthToken?: () => string | null | undefined;
+}) {
   youtubeSearchEndpoint = opts.endpoint || undefined;
+  youtubeSearchGetAuthToken = opts.getAuthToken || undefined;
 }
 
 const YoutubePicker: React.FC<YoutubePickerProps> = ({
@@ -88,12 +98,28 @@ const YoutubePicker: React.FC<YoutubePickerProps> = ({
     setError(null);
     try {
       if (youtubeSearchEndpoint) {
+        const rawToken = youtubeSearchGetAuthToken?.();
+        const token =
+          rawToken && rawToken !== 'null' && rawToken !== 'undefined' ? String(rawToken).trim() : '';
+        if (!token) {
+          throw new Error('Please log in to search YouTube');
+        }
+        const authHeader = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
         const sep = youtubeSearchEndpoint.includes('?') ? '&' : '?';
         const r = await fetch(`${youtubeSearchEndpoint}${sep}q=${encodeURIComponent(query)}`, {
           signal: abortController.signal,
+          headers: { Authorization: authHeader },
         });
         const body = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(`Failed to search YouTube: ${body?.error || r.statusText}`);
+        if (!r.ok) {
+          if (r.status === 401 || r.status === 403) {
+            throw new Error('Please log in to search YouTube');
+          }
+          if (r.status === 429) {
+            throw new Error(body?.error || 'Too many YouTube searches, please slow down.');
+          }
+          throw new Error(`Failed to search YouTube: ${body?.error || r.statusText}`);
+        }
         setVideos(Array.isArray(body?.items) ? body.items : []);
         return;
       }
