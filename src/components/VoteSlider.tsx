@@ -86,8 +86,8 @@ export function VoteSlider({
    *  slider shows an "All accounts" / per-account picker; with 0–1 it
    *  behaves exactly like the single-account slider. */
   voteAccounts?: VoteAccountOption[];
-  /** Accounts pre-checked when the picker opens (default: the first
-   *  account that hasn't voted yet). */
+  /** Accounts pre-checked when the picker opens (default: the active
+   *  `currentAccount` when it is eligible; otherwise the first eligible). */
   defaultSelectedAccounts?: string[];
 }) {
   // No explicit `voteAccounts` (comments, replies, upvote list): fall back to
@@ -128,18 +128,23 @@ export function VoteSlider({
     [voteAccounts],
   );
   const preferred = defaultSelectedAccounts ?? (voteCtx?.currentAccount ? [voteCtx.currentAccount.toLowerCase()] : []);
-  const [selected, setSelected] = useState<string[]>(() => {
-    const wanted = preferred.filter((u) => eligible.includes(u));
-    return wanted.length > 0 ? wanted : eligible.slice(0, 1);
-  });
+  /** Match preferred names to eligible usernames case-insensitively, keeping
+   *  the eligible spelling. Falls back to the first eligible account. */
+  const pickDefaults = (eligibleNames: string[], preferredNames: string[]) => {
+    const byLower = new Map(eligibleNames.map((u) => [u.toLowerCase(), u]));
+    const wanted = preferredNames
+      .map((u) => byLower.get(u.toLowerCase()))
+      .filter((u): u is string => !!u);
+    return wanted.length > 0 ? wanted : eligibleNames.slice(0, 1);
+  };
+  const [selected, setSelected] = useState<string[]>(() => pickDefaults(eligible, preferred));
   // Live votes arrive after mount: drop pre-selected accounts that turn out to have voted.
   useEffect(() => {
     if (!targetLoaded) return;
     setSelected((prev) => {
       const next = prev.filter((u) => eligible.includes(u));
       if (next.length > 0 || prev.length === 0) return next;
-      const wanted = preferred.filter((u) => eligible.includes(u));
-      return wanted.length > 0 ? wanted : eligible.slice(0, 1);
+      return pickDefaults(eligible, preferred);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetLoaded]);
