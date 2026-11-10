@@ -217,9 +217,9 @@ export default function InlineCommentItem({
     );
   }, [comment.active_votes, currentUser]);
 
-  // sagarkothari88 / letusbuyhive must never broadcast a direct vote —
-  // see RESTRICTED_DIRECT_VOTE_ACCOUNTS (postVotes.ts). Treated like
-  // "already voted" for VoteSlider's purposes on this comment too.
+  // CURATION_REQUEST_ONLY_ACCOUNTS must never broadcast a direct vote —
+  // see postVotes.ts. Treated like "already voted" for VoteSlider's
+  // purposes on this comment too.
   const isRestrictedVoter = isRestrictedDirectVoter(currentUser);
 
   // Find direct replies

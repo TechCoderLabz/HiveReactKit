@@ -8,15 +8,26 @@ export function isDownvote(vote: ActiveVote): boolean {
 }
 
 /**
- * Accounts that must never broadcast a direct/raw vote from the app —
- * their voting is handled entirely by backend automation instead, so a
- * direct vote from the app using one of these accounts would sidestep
- * that pipeline.
+ * Accounts whose upvote in the app is turned into a curation request
+ * (`POST /curation/request`) and must never be broadcast as a direct
+ * vote. A raw vote from one of these sessions would skip the curation
+ * pipeline's safety checks and get blindly mirrored to every trail
+ * account.
+ *
+ * Lookups are case-insensitive via `isRestrictedDirectVoter`.
+ * `RESTRICTED_DIRECT_VOTE_ACCOUNTS` is the same list as a Set, kept as
+ * the name existing call sites already import.
  */
-export const RESTRICTED_DIRECT_VOTE_ACCOUNTS = new Set(['sagarkothari88', 'letusbuyhive']);
+export const CURATION_REQUEST_ONLY_ACCOUNTS = [
+  'sagarkothari88',
+  'hivesuite.app',
+  'letusbuyhive',
+] as const;
+
+export const RESTRICTED_DIRECT_VOTE_ACCOUNTS = new Set<string>(CURATION_REQUEST_ONLY_ACCOUNTS);
 
 /** True when `username` may never cast a direct vote — see
- *  `RESTRICTED_DIRECT_VOTE_ACCOUNTS`. */
+ *  `CURATION_REQUEST_ONLY_ACCOUNTS`. */
 export function isRestrictedDirectVoter(username?: string | null): boolean {
   return !!username && RESTRICTED_DIRECT_VOTE_ACCOUNTS.has(username.toLowerCase());
 }
