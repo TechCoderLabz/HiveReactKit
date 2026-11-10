@@ -282,6 +282,9 @@ export {
 export {
   THREESPEAK_FUND_ACCOUNT,
   THREESPEAK_FUND_PERCENT,
+  ENCODER_PAY_ACCOUNT,
+  ENCODER_PAY_PERCENT,
+  THREESPEAK_VIDEO_URL_RE,
   bodyHasVideo,
   get3SpeakIpfsImageCount,
   getThreeSpeakFundPercent,

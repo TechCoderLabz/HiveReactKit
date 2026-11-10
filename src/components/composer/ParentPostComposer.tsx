@@ -70,6 +70,8 @@ import {
 import {
   THREESPEAK_FUND_ACCOUNT,
   THREESPEAK_FUND_PERCENT,
+  ENCODER_PAY_ACCOUNT,
+  ENCODER_PAY_PERCENT,
   bodyHasVideo,
   get3SpeakIpfsImageCount,
   getThreeSpeakFundPercent,
@@ -864,11 +866,17 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
         list.push({ account: THREESPEAK_FUND_ACCOUNT, weight: threeSpeakWeight });
       }
 
+      // 3Speak's 1% encoding fee rides along with every video.
+      const encoderPayWeight = hasVideo ? ENCODER_PAY_PERCENT : 0;
+      if (encoderPayWeight > 0) {
+        list.push({ account: ENCODER_PAY_ACCOUNT, weight: encoderPayWeight });
+      }
+
       const memeBeneficiaries = decentMemesAsBeneficiaries(decentMemes, decentMemesKind);
       list.push(...memeBeneficiaries);
       const memeTotalWeight = memeBeneficiaries.reduce((sum, b) => sum + b.weight, 0);
 
-      const remainingNull = Math.max(0, 100 - hivesuiteWeight - threeSpeakWeight - memeTotalWeight);
+      const remainingNull = Math.max(0, 100 - hivesuiteWeight - threeSpeakWeight - encoderPayWeight - memeTotalWeight);
       if (remainingNull > 0) {
         list.push({ account: 'null', weight: remainingNull });
       }
@@ -878,6 +886,10 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
 
     if (threeSpeakFundPercent > 0) {
       list.push({ account: THREESPEAK_FUND_ACCOUNT, weight: threeSpeakFundPercent });
+    }
+    // 3Speak's own uploads carry 1% to encoder.pay alongside the 10% fund.
+    if (hasVideo) {
+      list.push({ account: ENCODER_PAY_ACCOUNT, weight: ENCODER_PAY_PERCENT });
     }
     list.push(...decentMemesAsBeneficiaries(decentMemes, decentMemesKind));
     // `sagarkothari88` built and maintains hivesuite.app — the 1% beneficiary
@@ -895,7 +907,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
     }
     console.log('ParentPostComposer: calculated lockedBeneficiaries:', list);
     return list;
-  }, [threeSpeakFundPercent, decentMemes, propLockedBeneficiaries, isWeb2User, currentUser]);
+  }, [threeSpeakFundPercent, hasVideo, decentMemes, propLockedBeneficiaries, isWeb2User, currentUser]);
   const lockedAccountsList = useMemo(
     () => lockedBeneficiaries.map((b) => b.account),
     [lockedBeneficiaries],
@@ -910,6 +922,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
     }
     if (hasVideo) {
       reasons[THREESPEAK_FUND_ACCOUNT] = '10% to threespeakfund is required for video posts';
+      reasons[ENCODER_PAY_ACCOUNT] = '1% to encoder.pay (3Speak encoding) is required for video posts';
     } else if (threeSpeakIpfsImageCount > 0) {
       reasons[THREESPEAK_FUND_ACCOUNT] = `${threeSpeakFundPercent}% to threespeakfund is required for 3Speak IPFS images (${threeSpeakIpfsImageCount} image${threeSpeakIpfsImageCount > 1 ? 's' : ''})`;
     }
