@@ -22,6 +22,7 @@ import { Lock, Minus, Plus, Trash2, X } from 'lucide-react';
 import {
   THREESPEAK_FUND_ACCOUNT,
   THREESPEAK_FUND_PERCENT,
+  ENCODER_PAY_ACCOUNT,
   enforceVideoBeneficiaries,
   normalizeBeneficiaryAccount,
   sanitizeBeneficiaries,
@@ -179,12 +180,15 @@ const BeneficiariesEditor: React.FC<BeneficiariesEditorProps> = ({
   const [draftWeight, setDraftWeight] = useState<number>(1);
   const [error, setError] = useState<string | null>(null);
 
-  // Unified set of locked accounts: threespeakfund (when hasVideo) +
+  // Unified set of locked accounts: threespeakfund + encoder.pay (when hasVideo) +
   // whatever extras the composer passes through (e.g. DecentMemes
   // creator/submitter rows).
   const lockedAccountsSet = useMemo(() => {
     const s = new Set<string>();
-    if (hasVideo) s.add(THREESPEAK_FUND_ACCOUNT);
+    if (hasVideo) {
+      s.add(THREESPEAK_FUND_ACCOUNT);
+      s.add(ENCODER_PAY_ACCOUNT);
+    }
     for (const a of lockedAccounts ?? []) {
       const acc = normalizeBeneficiaryAccount(a);
       if (acc) s.add(acc);
@@ -366,7 +370,9 @@ const BeneficiariesEditor: React.FC<BeneficiariesEditorProps> = ({
                 ? (lockReasons?.[b.account]
                   ?? (b.account === THREESPEAK_FUND_ACCOUNT
                     ? '10% to threespeakfund is required for video posts'
-                    : `@${b.account} is auto-attached and cannot be removed`))
+                    : b.account === ENCODER_PAY_ACCOUNT
+                      ? '1% to encoder.pay (3Speak encoding) is required for video posts'
+                      : `@${b.account} is auto-attached and cannot be removed`))
                 : 'Remove';
               return (
                 <div

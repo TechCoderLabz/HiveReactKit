@@ -17,6 +17,15 @@ import { buildCommentOptions } from './commentOptions';
 export const THREESPEAK_FUND_ACCOUNT = 'threespeakfund';
 /** Locked weight for the 3Speak fund beneficiary, expressed in whole-percent UI units. */
 export const THREESPEAK_FUND_PERCENT = 10;
+/**
+ * 3Speak's encoding-payment account. 3Speak's own uploads carry 1% to
+ * `encoder.pay` (it pays the 3Speak encoder network that transcodes the
+ * video) alongside 10% to `threespeakfund`. Every video post uploaded via
+ * 3Speak must carry both.
+ */
+export const ENCODER_PAY_ACCOUNT = 'encoder.pay';
+/** Locked weight for `encoder.pay` on video posts, in whole-percent UI units. */
+export const ENCODER_PAY_PERCENT = 1;
 
 export interface Beneficiary {
   /** Hive account name (lowercase, no leading @). */
@@ -25,9 +34,16 @@ export interface Beneficiary {
   weight: number;
 }
 
-/** Detect a 3Speak video embed in the body — matches the URLs the composer appends. */
+/**
+ * Detect a 3Speak video embed in the body — matches the URLs the composer
+ * appends. Accepts `play.3speak.tv`, `embed.3speak.tv` / `embedN.3speak.tv`
+ * and bare `3speak.tv` hosts, since the 3Speak upload host may hand back any
+ * of them.
+ */
+export const THREESPEAK_VIDEO_URL_RE =
+  /https?:\/\/(?:(?:play|embed\d*)\.)?3speak\.tv\/(?:watch|embed)\?v=/i;
 export function bodyHasVideo(body: string): boolean {
-  return /https?:\/\/play\.3speak\.tv\/(?:watch|embed)\?v=/.test(body || '');
+  return THREESPEAK_VIDEO_URL_RE.test(body || '');
 }
 
 /** Detect 3Speak IPFS image URLs in body text. Returns count of unique 3Speak IPFS images. */
@@ -76,13 +92,13 @@ export function totalBeneficiaryWeight(list: Beneficiary[] | undefined): number 
 
 /**
  * Enforce the 3Speak fund rule: when a post/comment has video content, the
- * `threespeakfund` account must receive 10% and is non-removable, so the
- * remaining user-controlled allocation is capped at 90%.
+ * `threespeakfund` account must receive 10% and `encoder.pay` 1%; both are
+ * non-removable, so the remaining user-controlled allocation is capped at 89%.
  *
  * Strategy:
- * 1. Strip any existing `threespeakfund` entry from `userList`.
- * 2. Scale the remaining entries proportionally so their sum ≤ 90%.
- * 3. Prepend a locked `threespeakfund` 10% entry.
+ * 1. Strip any existing `threespeakfund` / `encoder.pay` entries from `userList`.
+ * 2. Scale the remaining entries proportionally so their sum ≤ 89%.
+ * 3. Prepend locked `threespeakfund` 10% and `encoder.pay` 1% entries.
  *
  * If `hasVideo` is false, returns `sanitizeBeneficiaries(userList)` unchanged.
  */
@@ -93,9 +109,11 @@ export function enforceVideoBeneficiaries(
   const sanitized = sanitizeBeneficiaries(userList);
   if (!hasVideo) return sanitized;
 
-  const withoutFund = sanitized.filter((b) => b.account !== THREESPEAK_FUND_ACCOUNT);
+  const withoutFund = sanitized.filter(
+    (b) => b.account !== THREESPEAK_FUND_ACCOUNT && b.account !== ENCODER_PAY_ACCOUNT,
+  );
   const userTotal = withoutFund.reduce((s, b) => s + b.weight, 0);
-  const cap = 100 - THREESPEAK_FUND_PERCENT; // 90
+  const cap = 100 - THREESPEAK_FUND_PERCENT - ENCODER_PAY_PERCENT; // 89
   let scaled = withoutFund;
   if (userTotal > cap) {
     const factor = cap / userTotal;
@@ -105,7 +123,11 @@ export function enforceVideoBeneficiaries(
     // After flooring, the total may be slightly under the cap; that is fine —
     // Hive does not require the beneficiaries to sum to 100%.
   }
-  return [{ account: THREESPEAK_FUND_ACCOUNT, weight: THREESPEAK_FUND_PERCENT }, ...scaled];
+  return [
+    { account: THREESPEAK_FUND_ACCOUNT, weight: THREESPEAK_FUND_PERCENT },
+    { account: ENCODER_PAY_ACCOUNT, weight: ENCODER_PAY_PERCENT },
+    ...scaled,
+  ];
 }
 
 /**
