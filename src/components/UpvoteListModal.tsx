@@ -23,7 +23,7 @@ import type { Post } from "@/types/post";
 import { getHiveClient } from "@/config/hiveEndpoint";
 import { VoteSlider, ALREADY_VOTED_MESSAGE } from "./VoteSlider";
 import { toast } from "@/hooks";
-import { isDownvote } from "@/utils/postVotes";
+import { isDownvote, isRestrictedDirectVoter } from "@/utils/postVotes";
 
 export function formatVoteAmount(val: number): string {
   if (!Number.isFinite(val) || val === 0) return "0.000";
@@ -577,6 +577,14 @@ const UpvoteListModal = ({
       alert("Please login to upvote");
       return;
     }
+    // Restricted accounts must never take this fallback path — it
+    // broadcasts a direct vote through the kit's own API. Consumers
+    // should pass `onClickUpvoteButton` (PostActionButton does), which
+    // routes to a curation request instead.
+    if (isRestrictedDirectVoter(currentUser)) {
+      showToast("Direct voting isn't available for this account");
+      return;
+    }
     try {
       const weight = Math.round(percent * 100);
       await apiService.handleUpvote({ author, permlink, weight, authToken: token });
@@ -678,6 +686,10 @@ const UpvoteListModal = ({
                 }
                 if (!currentUser || !token) {
                   showToast("Please login to upvote");
+                  return;
+                }
+                if (isRestrictedDirectVoter(currentUser)) {
+                  showToast("Direct voting isn't available for this account");
                   return;
                 }
                 if (hasAlreadyVoted) {
