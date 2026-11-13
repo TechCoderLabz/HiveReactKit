@@ -16,6 +16,7 @@ import type { Post } from '@/types/post';
 import { ThreeSpeakPlayer as ThreeSpeakNativePlayer, type ThreeSpeakPlayerInjectedProps } from '../ThreeSpeakPlayer';
 import { IPFS_URL_REGEX, useIpfsKind } from '../IpfsMedia';
 import { stripFirstContextLink, extractFirstContextTwitterId, isFirstContextPost } from '@/utils/firstContext';
+import { YOUTUBE_IFRAME_REFERRER_POLICY, youtubeEmbedSrc } from '@/utils/youtubeEmbed';
 
 export { stripFirstContextLink, extractFirstContextTwitterId, isFirstContextPost };
 
@@ -1033,7 +1034,8 @@ export const MediaPopup: FC<{
             <div className="w-full">
               <div className="w-full overflow-hidden rounded-lg" style={{ aspectRatio: '16/9' }}>
                 <iframe
-                  src={`https://www.youtube-nocookie.com/embed/${attachment.id}?autoplay=1&rel=0&playsinline=1`}
+                  src={youtubeEmbedSrc(attachment.id, { autoplay: true })}
+                  referrerPolicy={YOUTUBE_IFRAME_REFERRER_POLICY}
                   title="YouTube"
                   className="h-full w-full border-0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -1248,7 +1250,8 @@ export const AttachmentStrip: FC<AttachmentStripProps> = ({ attachments, disable
           onClick={(e) => e.stopPropagation()}
         >
           <iframe
-            src={`https://www.youtube-nocookie.com/embed/${current.id}?rel=0&playsinline=1`}
+            src={youtubeEmbedSrc(current.id)}
+            referrerPolicy={YOUTUBE_IFRAME_REFERRER_POLICY}
             title="YouTube"
             className="border-0"
             style={{ aspectRatio: '16/9', height: '100%', maxHeight: '100%', maxWidth: '100%' }}
