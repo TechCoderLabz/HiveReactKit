@@ -9,6 +9,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { parseThreeSpeakRef, type PostMedia } from '../utils/postMedia';
+import { YOUTUBE_IFRAME_REFERRER_POLICY, youtubeEmbedSrc } from '../utils/youtubeEmbed';
 import { ThreeSpeakPlayer, type ThreeSpeakPlayerInjectedProps } from './ThreeSpeakPlayer';
 
 /**
@@ -285,7 +286,8 @@ export const MediaLightbox: FC<MediaLightboxProps> = ({ items, startIndex = 0, o
         {current.kind === 'youtube' && (
           <div className="w-full overflow-hidden rounded-lg" style={{ aspectRatio: '16/9' }}>
             <iframe
-              src={`https://www.youtube-nocookie.com/embed/${current.id}?autoplay=1&rel=0&playsinline=1`}
+              src={youtubeEmbedSrc(current.id, { autoplay: true })}
+              referrerPolicy={YOUTUBE_IFRAME_REFERRER_POLICY}
               title="YouTube"
               className="h-full w-full border-0"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

@@ -7,6 +7,7 @@ import { userService } from '@/services/userService';
 import { Post } from '@/types/post';
 import { Poll } from '@/types/poll';
 import { getHiveContentType } from '@/utils/postVotes';
+import { YOUTUBE_IFRAME_REFERRER_POLICY, youtubeEmbedSrc } from '@/utils/youtubeEmbed';
 import {
   AlertCircle,
   ArrowLeft,
@@ -2687,7 +2688,8 @@ export function HiveDetailPost({
                 {youtubeBodyRefs.map((id) => (
                   <div key={id} className="overflow-hidden rounded-xl bg-black" style={{ aspectRatio: '16/9' }}>
                     <iframe
-                      src={`https://www.youtube-nocookie.com/embed/${id}?rel=0&playsinline=1`}
+                      src={youtubeEmbedSrc(id)}
+                      referrerPolicy={YOUTUBE_IFRAME_REFERRER_POLICY}
                       title="YouTube Video"
                       className="h-full w-full border-0"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

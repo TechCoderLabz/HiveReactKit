@@ -216,6 +216,7 @@ export * from './hooks/useReplyDraftAutosave';
 
 // Utils
 export { parseHiveFrontendUrl, rewriteHiveUrlsToHiveSuite, type HiveLinkTarget, preLinkMentions, preLinkUrls, preLinkHashtags } from './utils/hiveLinks';
+export { youtubeEmbedSrc, youtubeEmbedNeedsHostedPage, YOUTUBE_HOSTED_EMBED_PAGE, YOUTUBE_IFRAME_REFERRER_POLICY, type YoutubeEmbedEnv, type YoutubePlayerParams } from './utils/youtubeEmbed';
 export {
   isPostTooOldToVote,
   parseHiveCreated,
