@@ -31,13 +31,14 @@ interface WalletProps {
    *  of the viewport — `root: null` is unreliable inside the profile's
    *  nested scroll pane (the sentinel never crosses the viewport). */
   scrollRootRef?: React.RefObject<HTMLElement | null>;
-  /** Logged-in user — when equal to `username`, RC Update / Delete buttons
-   *  and Delegate HP/RC buttons are exposed (and only fire when the matching
-   *  callbacks below are wired). */
+  /** Logged-in user — when it matches `username`, RC Update / Delete buttons,
+   *  the HP remove button, and Delegate HP/RC buttons are exposed (and only
+   *  fire when the matching callbacks below are wired). */
   currentUsername?: string;
   onUpdateRcDelegation?: DelegationsProps["onUpdateRcDelegation"];
   onDeleteRcDelegation?: DelegationsProps["onDeleteRcDelegation"];
   onCreateHpDelegation?: DelegationsProps["onCreateHpDelegation"];
+  onDeleteHpDelegation?: DelegationsProps["onDeleteHpDelegation"];
   onCreateRcDelegation?: DelegationsProps["onCreateRcDelegation"];
   /** Callback fired when an avatar or @username link is tapped */
   onUserClick?: (username: string) => void;
@@ -1057,6 +1058,7 @@ export const Wallet: React.FC<WalletProps> = ({
   onUpdateRcDelegation,
   onDeleteRcDelegation,
   onCreateHpDelegation,
+  onDeleteHpDelegation,
   onCreateRcDelegation,
   onUserClick,
   getUserUrl,
@@ -1512,6 +1514,7 @@ export const Wallet: React.FC<WalletProps> = ({
             onUpdateRcDelegation={onUpdateRcDelegation}
             onDeleteRcDelegation={onDeleteRcDelegation}
             onCreateHpDelegation={onCreateHpDelegation}
+            onDeleteHpDelegation={onDeleteHpDelegation}
             onCreateRcDelegation={onCreateRcDelegation}
             onUserClick={onUserClick}
           />
