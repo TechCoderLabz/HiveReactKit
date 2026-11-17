@@ -45,9 +45,15 @@ interface CommentsModalProps {
   beneficiaryFavorites?: Beneficiary[];
   /** ThreeSpeak user JWT token — enables image/video upload via ThreeSpeak backend */
   threeSpeakToken?: string;
+  /** Server-side image upload for accounts that cannot sign (web2 / EVM). */
+  uploadImageFn?: (file: Blob, filename?: string) => Promise<string>;
   encoderUrl?: string;
   /** Ecency image hosting token — enables image upload in comment composer */
   ecencyToken?: string;
+  /** Posting-key signer for images.hive.blog uploads. */
+  onSignMessage?: (message: string) => Promise<string>;
+  /** Hive account name used with onSignMessage. */
+  signingUsername?: string;
   /** 3Speak API key — enables audio/video upload in comment composer */
   threeSpeakApiKey?: string;
   mintUploadTokenFn?: (opts: { uploadHost: string; owner: string; frontendApp?: string; short: boolean }) => Promise<any>;
@@ -74,7 +80,7 @@ interface CommentsModalProps {
   isWeb2User?: boolean;
 }
 
-const CommentsModal = ({ author, permlink, onClose, currentUser, token, onClickCommentUpvote, onClickCommentReply, onClickUpvoteButton, onSubmitComment, threeSpeakToken, encoderUrl, ecencyToken, threeSpeakApiKey, mintUploadTokenFn, setThumbnailFn, uploadAudioFn, ThreeSpeakPlayerComponent, giphyApiKey, templateToken, templateApiBaseUrl, showVoteButton, parentTags, defaultReward, defaultBeneficiaries, beneficiaryFavorites, defaultVotePercent, voteWeightStep, allowLandscapeVideos, awaitingWalletApproval, isWeb2User = false }: CommentsModalProps) => {
+const CommentsModal = ({ author, permlink, onClose, currentUser, token, onClickCommentUpvote, onClickCommentReply, onClickUpvoteButton, onSubmitComment, threeSpeakToken, uploadImageFn, encoderUrl, ecencyToken, onSignMessage, signingUsername, threeSpeakApiKey, mintUploadTokenFn, setThumbnailFn, uploadAudioFn, ThreeSpeakPlayerComponent, giphyApiKey, templateToken, templateApiBaseUrl, showVoteButton, parentTags, defaultReward, defaultBeneficiaries, beneficiaryFavorites, defaultVotePercent, voteWeightStep, allowLandscapeVideos, awaitingWalletApproval, isWeb2User = false }: CommentsModalProps) => {
   const isCurrentUserWeb2 = isWeb2User || Boolean(currentUser && !/^[a-z][a-z0-9.-]{2,15}$/.test(currentUser));
   const [comments, setComments] = useState<Discussion[]>([]);
   const [filteredComments, setFilteredComments] = useState<Discussion[]>([]);
@@ -306,8 +312,11 @@ const CommentsModal = ({ author, permlink, onClose, currentUser, token, onClickC
                   currentUser={currentUser}
                   placeholder="Add a comment..."
                   threeSpeakToken={threeSpeakToken}
+                  uploadImageFn={uploadImageFn}
                   encoderUrl={encoderUrl}
                   ecencyToken={ecencyToken}
+                  onSignMessage={onSignMessage}
+                  signingUsername={signingUsername}
                   threeSpeakApiKey={threeSpeakApiKey}
                   mintUploadTokenFn={mintUploadTokenFn}
                   setThumbnailFn={setThumbnailFn}
@@ -399,6 +408,8 @@ const CommentsModal = ({ author, permlink, onClose, currentUser, token, onClickC
           onCommentSubmitted={handleCommentSubmitted}
           currentUser={currentUser}
           ecencyToken={ecencyToken}
+          onSignMessage={onSignMessage}
+          signingUsername={signingUsername}
           threeSpeakApiKey={threeSpeakApiKey}
           mintUploadTokenFn={mintUploadTokenFn}
           setThumbnailFn={setThumbnailFn}

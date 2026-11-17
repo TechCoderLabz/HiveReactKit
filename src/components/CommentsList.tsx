@@ -16,6 +16,8 @@ interface CommentsListProps {
   currentUser?: string;
   token?: string;
   threeSpeakToken?: string;
+  /** Server-side image upload for accounts that cannot sign (web2 / EVM). */
+  uploadImageFn?: (file: Blob, filename?: string) => Promise<string>;
   encoderUrl?: string;
   onClickUpvoteButton?: (currentUser?: string, token?: string) => void;
   onClickCommentUpvote?: (author: string, permlink: string, percent: number) => void | Promise<void>;
@@ -32,6 +34,7 @@ export function CommentsList({
   currentUser,
   token,
   threeSpeakToken,
+  uploadImageFn,
   encoderUrl,
   onClickUpvoteButton,
   onClickCommentUpvote,
@@ -180,6 +183,7 @@ export function CommentsList({
             onCancel={() => setShowAddComment(false)}
             currentUser={currentUser}
             threeSpeakToken={threeSpeakToken}
+            uploadImageFn={uploadImageFn}
             encoderUrl={encoderUrl}
             placeholder="Add a comment..."
           />
@@ -197,6 +201,7 @@ export function CommentsList({
             onCancel={() => setReplyingTo(null)}
             currentUser={currentUser}
             threeSpeakToken={threeSpeakToken}
+            uploadImageFn={uploadImageFn}
             encoderUrl={encoderUrl}
             placeholder={`Reply to @${replyingTo.author}...`}
           />

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { legacyIpfsImageProxyFn } from '../utils/ipfsImageProxy';
 import { useEffect, useLayoutEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ThreeSpeakPlayer, type ThreeSpeakPlayerInjectedProps } from './ThreeSpeakPlayer';
@@ -278,8 +279,14 @@ export interface HiveDetailPostProps {
 
   // Composer tokens
   threeSpeakToken?: string;
+  /** Server-side image upload for accounts that cannot sign (web2 / EVM). */
+  uploadImageFn?: (file: Blob, filename?: string) => Promise<string>;
   encoderUrl?: string;
   ecencyToken?: string;
+  /** Posting-key signer for images.hive.blog uploads. */
+  onSignMessage?: (message: string) => Promise<string>;
+  /** Hive account name used with onSignMessage. */
+  signingUsername?: string;
   threeSpeakApiKey?: string;
   /** Custom 3Speak upload host(s) (e.g. 'https://embed.3speak.tv') */
   threeSpeakUploadHost?: string;
@@ -508,8 +515,11 @@ export function HiveDetailPost({
   onEditComment,
   onDeleteComment,
   threeSpeakToken,
+  uploadImageFn,
   encoderUrl,
   ecencyToken,
+  onSignMessage,
+  signingUsername,
   threeSpeakApiKey,
   threeSpeakUploadHost,
   threeSpeakFrontendApp,
@@ -980,15 +990,7 @@ export function HiveDetailPost({
         usertagUrlFn: renderOptions?.userLinkUrlFn ?? ((user: string) => `/@${user}`),
         hashtagUrlFn: renderOptions?.tagLinkUrlFn ?? ((tag: string) => `/tags/${tag}`),
         convertHiveUrls: true,
-        imageProxyFn: (url: string) => {
-          if (!url) return url;
-          const trimmed = url.trim();
-          if (trimmed.includes('/ipfs/') || trimmed.startsWith('ipfs://')) {
-            const cid = trimmed.split('/ipfs/').pop()?.replace(/^ipfs:\/\//, '');
-            if (cid) return `https://ipfs.3speak.tv/ipfs/${cid}`;
-          }
-          return url;
-        },
+        imageProxyFn: legacyIpfsImageProxyFn,
       });
     } catch {
       return null;
@@ -1835,7 +1837,6 @@ export function HiveDetailPost({
     if (!container) return;
 
     const IPFS_GATEWAYS = [
-      'https://ipfs.3speak.tv',
       'https://ipfs.io',
       'https://cloudflare-ipfs.com',
       'https://gateway.pinata.cloud',
@@ -3123,8 +3124,11 @@ export function HiveDetailPost({
                 onSubmitComment={onSubmitComment}
                 onClickCommentUpvote={onClickCommentUpvote}
                 threeSpeakToken={threeSpeakToken}
+                uploadImageFn={uploadImageFn}
                 encoderUrl={encoderUrl}
                 ecencyToken={ecencyToken}
+                onSignMessage={onSignMessage}
+                signingUsername={signingUsername}
                 threeSpeakApiKey={threeSpeakApiKey}
                 threeSpeakUploadHost={threeSpeakUploadHost}
                 threeSpeakFrontendApp={threeSpeakFrontendApp}

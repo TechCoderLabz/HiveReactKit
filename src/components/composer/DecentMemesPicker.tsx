@@ -30,7 +30,7 @@ import {
   ExternalLink,
   AlertCircle,
 } from 'lucide-react';
-import { uploadImageWithFallback, type PostingSignMessageFn } from '../../services/hiveImageUpload';
+import { uploadImageWithFallback, type PostingSignMessageFn, type ProxyImageUploadFn } from '../../services/hiveImageUpload';
 import {
   DECENTMEMES_WIDGET_ORIGIN,
   DECENTMEMES_WIDGET_URL,
@@ -48,10 +48,12 @@ export interface DecentMemesPickerProps {
    *  `json_metadata.decentmemes`. `meta` is `undefined` for the
    *  file-picker fallback path. */
   onSelectMeme: (url: string, meta?: DecentMemesMeme) => void;
-  /** ThreeSpeak user JWT token for primary image upload API */
+  /** @deprecated Image uploads no longer use 3Speak. Ignored. */
   threeSpeakToken?: string;
-  /** Encoder base URL */
+  /** @deprecated Image uploads no longer use the encoder. Ignored. */
   encoderUrl?: string;
+  /** Server-side image upload for accounts that cannot sign (web2). */
+  uploadImageFn?: ProxyImageUploadFn;
   /** Ecency token for the no-signing upload path. */
   ecencyToken?: string;
   /** Signer for the `images.hive.blog` fallback. */
@@ -74,8 +76,7 @@ function DecentMemesPicker({
   isOpen,
   onClose,
   onSelectMeme,
-  threeSpeakToken,
-  encoderUrl,
+  uploadImageFn,
   ecencyToken,
   onSignMessage,
   signingUsername,
@@ -112,8 +113,7 @@ function DecentMemesPicker({
     setError(null);
     try {
       const url = await uploadImageWithFallback(file, {
-        threeSpeakToken,
-        encoderUrl,
+        uploadImageFn,
         ecencyToken,
         onSignMessage,
         signingUsername,

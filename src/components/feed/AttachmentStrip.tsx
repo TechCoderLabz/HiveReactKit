@@ -15,6 +15,7 @@ import {
 import type { Post } from '@/types/post';
 import { ThreeSpeakPlayer as ThreeSpeakNativePlayer, type ThreeSpeakPlayerInjectedProps } from '../ThreeSpeakPlayer';
 import { IPFS_URL_REGEX, useIpfsKind } from '../IpfsMedia';
+import { proxyLegacyIpfsImageUrl } from '../../utils/ipfsImageProxy';
 import { stripFirstContextLink, extractFirstContextTwitterId, isFirstContextPost } from '@/utils/firstContext';
 import { YOUTUBE_IFRAME_REFERRER_POLICY, youtubeEmbedSrc } from '@/utils/youtubeEmbed';
 
@@ -116,7 +117,7 @@ export function proxyHeicUrl(url: string): string {
     if (hasEcencySizePrefix) return trimmed;
     return `https://images.ecency.com/0x0/${trimmed}`;
   }
-  return trimmed;
+  return proxyLegacyIpfsImageUrl(trimmed);
 }
 
 export function parseJsonMetadata(jm: unknown): Record<string, unknown> {
@@ -877,7 +878,7 @@ export const IpfsStripTile: FC<{ url: string; onOpen: (e: React.MouseEvent) => v
       className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-lg bg-[var(--hrk-bg-surface-sunken)]"
       aria-label="Open image preview"
     >
-      <img src={url} alt="" loading="lazy" className="max-h-full max-w-full object-contain" />
+      <img src={proxyLegacyIpfsImageUrl(url)} alt="" loading="lazy" className="max-h-full max-w-full object-contain" />
     </button>
   );
 };
@@ -896,7 +897,7 @@ export const IpfsPopupBody: FC<{ url: string }> = ({ url }) => {
     );
   }
   if (kind === 'image' || kind === null) {
-    return <ZoomableImage src={url} />;
+    return <ZoomableImage src={proxyLegacyIpfsImageUrl(url)} />;
   }
   return (
     <a
