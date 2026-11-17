@@ -267,6 +267,11 @@ export interface UserDetailProfileProps {
    *  HP tab; consumers should only pass it for keychain / hiveauth auth
    *  methods (active key required), never for plain-posting-key sessions. */
   onCreateHpDelegation?: (delegatee: string, hp: string) => void | boolean | Promise<void | boolean>;
+  /** Wallet tab — remove an outgoing HP delegation (0 VESTS). Wiring this
+   *  prop exposes the trash button on outgoing HP rows for the profile
+   *  owner. Same active-key gate as `onCreateHpDelegation`. A confirm step
+   *  runs before this callback. */
+  onDeleteHpDelegation?: (delegatee: string) => void | boolean | Promise<void | boolean>;
   /** Wallet tab — create a new RC delegation. `maxRc` is a raw RC integer
    *  string (e.g. "50000000000"). Wiring this prop exposes the "Delegate RC"
    *  button on the RC tab. Posting auth is sufficient. */
@@ -662,6 +667,7 @@ const UserDetailProfile: React.FC<UserDetailProfileProps> = ({
   onUpdateRcDelegation,
   onDeleteRcDelegation,
   onCreateHpDelegation,
+  onDeleteHpDelegation,
   onCreateRcDelegation,
   onTransfer,
   onPowerUp,
@@ -4206,6 +4212,7 @@ const UserDetailProfile: React.FC<UserDetailProfileProps> = ({
               onUpdateRcDelegation={onUpdateRcDelegation}
               onDeleteRcDelegation={onDeleteRcDelegation}
               onCreateHpDelegation={onCreateHpDelegation}
+              onDeleteHpDelegation={onDeleteHpDelegation}
               onCreateRcDelegation={onCreateRcDelegation}
               onTransfer={onTransfer}
               onPowerUp={onPowerUp}

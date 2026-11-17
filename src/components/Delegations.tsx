@@ -116,8 +116,9 @@ export async function fetchRcAccountsMap(
 export interface DelegationsProps {
   /** Profile being viewed. */
   username: string;
-  /** Currently logged-in user. When equal to `username`, outgoing rows show
-   *  Update / Delete actions for RC delegations. */
+  /** Currently logged-in user. When it matches `username` (case-insensitive),
+   *  outgoing rows show Update / Delete for RC and Delete for HP, when the
+   *  matching callbacks are provided. */
   currentUsername?: string;
   /** Hide the panel entirely until the parent decides to mount it. */
   className?: string;
@@ -138,6 +139,15 @@ export interface DelegationsProps {
   onCreateHpDelegation?: (
     delegatee: string,
     hp: string,
+  ) => void | boolean | Promise<void | boolean>;
+  /** Remove an outgoing HP delegation. The consumer broadcasts
+   *  `delegate_vesting_shares` with 0 VESTS (Keychain `requestDelegation` or
+   *  the existing active-key broadcast). Return `false` if the signer
+   *  cancelled — the row stays. The confirm step lives in this component;
+   *  only pass the callback for logins that can sign an active-key op, and
+   *  only the profile owner sees the button. */
+  onDeleteHpDelegation?: (
+    delegatee: string,
   ) => void | boolean | Promise<void | boolean>;
   /** Create a new RC delegation. `maxRc` is the raw RC integer string (e.g.
    *  "50000000000" for 50 b RC). When provided, a "Delegate RC" button
@@ -561,6 +571,7 @@ export const Delegations: React.FC<DelegationsProps> = ({
   onUpdateRcDelegation,
   onDeleteRcDelegation,
   onCreateHpDelegation,
+  onDeleteHpDelegation,
   onCreateRcDelegation,
   onUserClick,
 }) => {
@@ -592,10 +603,14 @@ export const Delegations: React.FC<DelegationsProps> = ({
   const [editing, setEditing] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
   const [createKind, setCreateKind] = useState<"hp" | "rc" | null>(null);
+  const [hpRemoveTarget, setHpRemoveTarget] = useState<HpDelegation | null>(null);
 
-  const isOwnProfile = currentUsername === username;
+  const isOwnProfile =
+    !!currentUsername &&
+    currentUsername.toLowerCase() === username.toLowerCase();
   const canEditRc =
     isOwnProfile && (!!onUpdateRcDelegation || !!onDeleteRcDelegation);
+  const canEditHp = isOwnProfile && !!onDeleteHpDelegation;
   const canCreateHp = isOwnProfile && !!onCreateHpDelegation;
   const canCreateRc = isOwnProfile && !!onCreateRcDelegation;
 
@@ -675,6 +690,7 @@ export const Delegations: React.FC<DelegationsProps> = ({
     setSearch("");
     setEditing(null);
     setPending(null);
+    setHpRemoveTarget(null);
   }, [username, tab]);
 
   const totalHpOut = useMemo(
@@ -735,6 +751,26 @@ export const Delegations: React.FC<DelegationsProps> = ({
     }
   };
 
+  const handleDeleteHp = async (delegatee: string) => {
+    if (!onDeleteHpDelegation) return;
+    setPending(delegatee);
+    try {
+      const result = await onDeleteHpDelegation(delegatee);
+      if (result === false) return;
+      setHpRemoveTarget(null);
+      setBundle((prev) => ({
+        ...prev,
+        hp: {
+          ...prev.hp,
+          outgoing: prev.hp.outgoing.filter((d) => d.account !== delegatee),
+        },
+      }));
+      setTimeout(() => { void load(); }, 4000);
+    } finally {
+      setPending(null);
+    }
+  };
+
   const handleDelete = async (delegatee: string) => {
     if (!onDeleteRcDelegation) return;
     setPending(delegatee);
@@ -763,7 +799,7 @@ export const Delegations: React.FC<DelegationsProps> = ({
     setTimeout(() => { void load(); }, 4000);
   };
 
-  const renderHpRow = (d: HpDelegation, percent: number) => (
+  const renderHpRow = (d: HpDelegation, percent: number, allowRemove: boolean) => (
     <div
       key={`${d.account}-${d.operation_id ?? ""}`}
       className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 py-3 border-b border-gray-800/80 last:border-b-0 hover:bg-gray-850/40 transition-colors px-2 sm:px-3 rounded-md min-w-0"
@@ -774,8 +810,20 @@ export const Delegations: React.FC<DelegationsProps> = ({
           {formatHp(d.hp)}
         </div>
       </div>
-      <div className="flex items-center gap-2.5 flex-shrink-0 pl-[38px] sm:pl-0">
+      <div className="flex items-center justify-between sm:justify-start gap-2.5 min-w-0 sm:flex-shrink-0 pl-[38px] sm:pl-0">
         <RcProgressBar percentage={percent} />
+        {allowRemove && (
+          <button
+            type="button"
+            onClick={() => setHpRemoveTarget(d)}
+            disabled={pending === d.account}
+            className="p-2 rounded bg-[#252b36] hover:bg-red-950/40 border border-gray-700 text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors cursor-pointer flex items-center justify-center flex-shrink-0"
+            title="Remove delegation"
+            aria-label={`Remove HP delegation to @${d.account}`}
+          >
+            <FaTrash size={12} />
+          </button>
+        )}
       </div>
     </div>
   );
@@ -903,7 +951,7 @@ export const Delegations: React.FC<DelegationsProps> = ({
             ) : (
               <div className="mb-4">
                 {filterOut(bundle.hp.outgoing).map((d) =>
-                  renderHpRow(d, totalHpOut > 0 ? (d.hp / totalHpOut) * 100 : 0),
+                  renderHpRow(d, totalHpOut > 0 ? (d.hp / totalHpOut) * 100 : 0, canEditHp),
                 )}
               </div>
             )}
@@ -919,7 +967,7 @@ export const Delegations: React.FC<DelegationsProps> = ({
             ) : (
               <div>
                 {bundle.hp.incoming.map((d) =>
-                  renderHpRow(d, totalHpIn > 0 ? (d.hp / totalHpIn) * 100 : 0),
+                  renderHpRow(d, totalHpIn > 0 ? (d.hp / totalHpIn) * 100 : 0, false),
                 )}
               </div>
             )}
@@ -1037,6 +1085,47 @@ export const Delegations: React.FC<DelegationsProps> = ({
           onClose={() => setCreateKind(null)}
           onSubmit={handleCreate}
         />
+      )}
+
+      {hpRemoveTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-bold text-white">Remove HP delegation</h3>
+              <button
+                type="button"
+                onClick={() => setHpRemoveTarget(null)}
+                disabled={pending === hpRemoveTarget.account}
+                className="text-gray-400 hover:text-white disabled:opacity-50"
+                aria-label="Close"
+              >
+                <FaTimes size={14} />
+              </button>
+            </div>
+            <p className="text-sm text-gray-300 leading-relaxed">
+              Remove the {formatHp(hpRemoveTarget.hp)} delegation to @{hpRemoveTarget.account}?
+              This sets it to 0 VESTS. The HP takes about 5 days to return.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setHpRemoveTarget(null)}
+                disabled={pending === hpRemoveTarget.account}
+                className="px-4 py-2 text-sm rounded-md border border-gray-700 text-gray-200 hover:bg-gray-800 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => { void handleDeleteHp(hpRemoveTarget.account); }}
+                disabled={pending === hpRemoveTarget.account}
+                className="px-4 py-2 text-sm font-semibold rounded-md bg-red-600 hover:bg-red-500 text-white disabled:opacity-50"
+              >
+                {pending === hpRemoveTarget.account ? "Removing…" : "Remove"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
