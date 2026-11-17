@@ -28,7 +28,20 @@ const PostComposerPage = () => {
   const decentMemesRef = useRef<DecentMemesMeme[]>([]);
 
   return (
-    <div className="min-h-screen bg-black p-4 md:p-8">
+    <div
+      className="min-h-screen bg-black p-4 md:p-8 text-gray-200"
+      style={{
+        ['--hrk-text-tertiary' as string]: '#9ca3af',
+        ['--hrk-text-primary' as string]: '#f9fafb',
+        ['--hrk-text-secondary' as string]: '#d1d5db',
+        ['--hrk-bg-surface' as string]: '#111827',
+        ['--hrk-bg-surface-raised' as string]: '#1f2937',
+        ['--hrk-border-subtle' as string]: '#374151',
+        ['--hrk-border-default' as string]: '#4b5563',
+        ['--hrk-info' as string]: '#38bdf8',
+        ['--hrk-danger' as string]: '#f87171',
+      }}
+    >
       <div className="max-w-2xl mx-auto space-y-6">
         <h1 className="text-2xl font-bold text-white">PostComposer</h1>
         <p className="text-gray-400 text-sm">
@@ -99,7 +112,11 @@ const PostComposerPage = () => {
             console.log('PostComposer cancelled');
             alert('Cancelled');
           }}
-          currentUser="sagarkothari88"
+          currentUser="alice"
+          signingUsername="alice"
+          onSignMessage={async () => {
+            throw new Error('Sign this upload with Hive Keychain, HiveAuth, or a posting key.')
+          }}
           parentAuthor="shaktimaaan"
           placeholder="Write something in Markdown..."
           title="Create a Post"

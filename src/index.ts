@@ -287,8 +287,6 @@ export {
   ENCODER_PAY_PERCENT,
   THREESPEAK_VIDEO_URL_RE,
   bodyHasVideo,
-  get3SpeakIpfsImageCount,
-  getThreeSpeakFundPercent,
   normalizeBeneficiaryAccount,
   sanitizeBeneficiaries,
   totalBeneficiaryWeight,
@@ -352,7 +350,16 @@ export * from './services/proposalService';
 export * from './services/templateService';
 export * from './services/communityService';
 export * from './types/community';
-export { uploadToHiveImages, type PostingSignMessageFn } from './services/hiveImageUpload';
+export {
+  uploadToHiveImages,
+  uploadImageWithFallback,
+  type PostingSignMessageFn,
+  type ProxyImageUploadFn,
+} from './services/hiveImageUpload';
+export {
+  proxyLegacyIpfsImageUrl,
+  legacyIpfsImageProxyFn,
+} from './utils/ipfsImageProxy';
 
 // Store
 export * from './store/walletStore';

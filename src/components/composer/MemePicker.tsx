@@ -21,7 +21,7 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Search, ImageIcon, Upload, Loader2, ArrowLeft, Wand2 } from 'lucide-react';
-import { uploadImageWithFallback, type PostingSignMessageFn } from '../../services/hiveImageUpload';
+import { uploadImageWithFallback, type PostingSignMessageFn, type ProxyImageUploadFn } from '../../services/hiveImageUpload';
 
 // Memegen returns dozens of fields per template; we only use a handful.
 interface MemegenTemplate {
@@ -42,10 +42,12 @@ export interface MemePickerProps {
   onClose: () => void;
   /** Called with the public URL of the generated, uploaded meme. */
   onSelectMeme: (url: string) => void;
-  /** ThreeSpeak user JWT token for primary image upload API */
+  /** @deprecated Image uploads no longer use 3Speak. Ignored. */
   threeSpeakToken?: string;
-  /** Encoder base URL */
+  /** @deprecated Image uploads no longer use the encoder. Ignored. */
   encoderUrl?: string;
+  /** Server-side image upload for accounts that cannot sign (web2). */
+  uploadImageFn?: ProxyImageUploadFn;
   /** Ecency token for the no-signing upload path. */
   ecencyToken?: string;
   /** Signer for the `images.hive.blog` fallback. */
@@ -69,8 +71,7 @@ function MemePicker({
   isOpen,
   onClose,
   onSelectMeme,
-  threeSpeakToken,
-  encoderUrl,
+  uploadImageFn,
   ecencyToken,
   onSignMessage,
   signingUsername,
@@ -260,8 +261,7 @@ function MemePicker({
       const file = new File([blob], `meme-${Date.now()}.png`, { type: 'image/png' });
 
       const url = await uploadImageWithFallback(file, {
-        threeSpeakToken,
-        encoderUrl,
+        uploadImageFn,
         ecencyToken,
         onSignMessage,
         signingUsername,

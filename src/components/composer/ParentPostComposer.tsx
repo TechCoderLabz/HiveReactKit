@@ -9,6 +9,7 @@
  * `onSubmit({ title, description, body, tags, reward, beneficiaries, poll })`
  * and the consumer is responsible for assembling the Hive `comment` op.
  */
+import { legacyIpfsImageProxyFn } from '../../utils/ipfsImageProxy';
 import React, {
   useCallback,
   useEffect,
@@ -73,8 +74,6 @@ import {
   ENCODER_PAY_ACCOUNT,
   ENCODER_PAY_PERCENT,
   bodyHasVideo,
-  get3SpeakIpfsImageCount,
-  getThreeSpeakFundPercent,
   enforceLockedBeneficiaries,
   type Beneficiary,
 } from '../../utils/beneficiaries';
@@ -104,6 +103,7 @@ import { TemplateModel, templateService } from '../../services/templateService';
 import {
   uploadImageWithFallback,
   type PostingSignMessageFn,
+  type ProxyImageUploadFn,
 } from '../../services/hiveImageUpload';
 import { stripViaAppsCredit } from '../feed/AttachmentStrip';
 
@@ -192,8 +192,12 @@ export interface ParentPostComposerProps {
   beneficiaryFavorites?: Beneficiary[];
 
   /** Upload tokens — same plumbing the kit's PostComposer uses. */
+  /** @deprecated Image uploads no longer use 3Speak. Ignored. */
   threeSpeakToken?: string;
+  /** @deprecated Image uploads no longer use the encoder. Ignored. */
   encoderUrl?: string;
+  /** Server-side image upload for accounts that cannot sign (web2 / EVM). */
+  uploadImageFn?: ProxyImageUploadFn;
   ecencyToken?: string;
   onSignMessage?: PostingSignMessageFn;
   signingUsername?: string;
@@ -521,6 +525,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
   lockedBeneficiaries: propLockedBeneficiaries,
   beneficiaryFavorites,
   threeSpeakToken,
+  uploadImageFn,
   encoderUrl,
   ecencyToken,
   onSignMessage,
@@ -838,17 +843,10 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
     () => Boolean(videoEmbedUrl) || Boolean(videoUploadDetails) || bodyHasVideo(body),
     [videoEmbedUrl, videoUploadDetails, body],
   );
-  const threeSpeakIpfsImageCount = useMemo(
-    () => get3SpeakIpfsImageCount(body),
-    [body],
-  );
-  const threeSpeakFundPercent = useMemo(
-    () => getThreeSpeakFundPercent(hasVideo, threeSpeakIpfsImageCount),
-    [hasVideo, threeSpeakIpfsImageCount],
-  );
+  const threeSpeakFundPercent = hasVideo ? THREESPEAK_FUND_PERCENT : 0;
   useEffect(() => {
-    if ((hasVideo || threeSpeakIpfsImageCount > 0) && reward === 'decline') setReward('burn');
-  }, [hasVideo, threeSpeakIpfsImageCount, reward]);
+    if (hasVideo && reward === 'decline') setReward('burn');
+  }, [hasVideo, reward]);
   // ParentPostComposer is always a top-level post, so DecentMemes kind is
   // fixed to 'post' (10% cap). PickDecentMemesKind would return the same
   // for an undefined parent, but spelling it out keeps intent obvious.
@@ -923,8 +921,6 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
     if (hasVideo) {
       reasons[THREESPEAK_FUND_ACCOUNT] = '10% to threespeakfund is required for video posts';
       reasons[ENCODER_PAY_ACCOUNT] = '1% to encoder.pay (3Speak encoding) is required for video posts';
-    } else if (threeSpeakIpfsImageCount > 0) {
-      reasons[THREESPEAK_FUND_ACCOUNT] = `${threeSpeakFundPercent}% to threespeakfund is required for 3Speak IPFS images (${threeSpeakIpfsImageCount} image${threeSpeakIpfsImageCount > 1 ? 's' : ''})`;
     }
     for (const meme of decentMemes) {
       let targetAccount = 'decentmemeshold';
@@ -1011,9 +1007,9 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
     [lockedBeneficiaries],
   );
 
-  // ── Image upload (same Ecency-then-Hive-fallback pattern as PostComposer) ─
+  // Signed images.hive.blog first, then Ecency, then the web2/EVM proxy uploader.
   const canHiveFallback = Boolean(onSignMessage && signingUsername);
-  const canUploadImages = Boolean(threeSpeakToken) || Boolean(ecencyToken) || canHiveFallback;
+  const canUploadImages = Boolean(uploadImageFn) || Boolean(ecencyToken) || canHiveFallback;
   const pasteAbortRef = useRef<AbortController | null>(null);
   const imageUploaderRef = useRef<ImageUploaderRef>(null);
   const [isAwaitingApproval, setIsAwaitingApproval] = useState(false);
@@ -1034,8 +1030,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
 
       try {
         return await uploadImageWithFallback(file, {
-          threeSpeakToken,
-          encoderUrl,
+          uploadImageFn,
           ecencyToken,
           onSignMessage,
           signingUsername,
@@ -1053,7 +1048,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
         if (pasteAbortRef.current === controller) pasteAbortRef.current = null;
       }
     },
-    [threeSpeakToken, encoderUrl, ecencyToken, canHiveFallback, onSignMessage, signingUsername],
+    [uploadImageFn, ecencyToken, canHiveFallback, onSignMessage, signingUsername],
   );
 
   /**
@@ -1251,15 +1246,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
         hashtagUrlFn:
           renderOptions?.tagLinkUrlFn ?? ((tag: string) => `/tags/${tag}`),
         convertHiveUrls: true,
-        imageProxyFn: (url: string) => {
-          if (!url) return url;
-          const trimmed = url.trim();
-          if (trimmed.includes('/ipfs/') || trimmed.startsWith('ipfs://')) {
-            const cid = trimmed.split('/ipfs/').pop()?.replace(/^ipfs:\/\//, '');
-            if (cid) return `https://ipfs.3speak.tv/ipfs/${cid}`;
-          }
-          return url;
-        },
+        imageProxyFn: legacyIpfsImageProxyFn,
       });
     } catch {
       return null;
@@ -2310,6 +2297,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
                     onImageUploaded={(url) => insertText(`![Image](${url})\n`)}
                     onImagesUploaded={(urls) => insertText(urls.map((url) => `![Image](${url})\n`).join(''))}
                     threeSpeakToken={threeSpeakToken}
+                    uploadImageFn={uploadImageFn}
                     encoderUrl={encoderUrl}
                     ecencyToken={ecencyToken}
                     onSignMessage={onSignMessage}
@@ -2398,7 +2386,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
                 {/* Meme picker — visible when the composer has any image
                     upload path configured (ecency token or hive signer).
                     Sits beside the GIF button so users discover both. */}
-                {!hideMeme && (threeSpeakToken || ecencyToken || (onSignMessage && signingUsername)) && (
+                {!hideMeme && (uploadImageFn || ecencyToken || (onSignMessage && signingUsername)) && (
                   <button
                     type="button"
                     onClick={() => setIsMemeOpen(true)}
@@ -2409,7 +2397,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
                     MEME
                   </button>
                 )}
-                {!hideDecentMeme && (threeSpeakToken || ecencyToken || (onSignMessage && signingUsername)) && (() => {
+                {!hideDecentMeme && (uploadImageFn || ecencyToken || (onSignMessage && signingUsername)) && (() => {
                   // ParentPostComposer is always a top-level post → 3-meme cap.
                   const decentMemesLimit = getDecentMemesLimit(decentMemesKind);
                   const limitReached = decentMemes.length >= decentMemesLimit;
@@ -3235,6 +3223,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
           setIsMemeOpen(false);
         }}
         threeSpeakToken={threeSpeakToken}
+        uploadImageFn={uploadImageFn}
         encoderUrl={encoderUrl}
         ecencyToken={ecencyToken}
         onSignMessage={onSignMessage}
@@ -3249,6 +3238,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
           setIsDecentMemeOpen(false);
         }}
         threeSpeakToken={threeSpeakToken}
+        uploadImageFn={uploadImageFn}
         encoderUrl={encoderUrl}
         ecencyToken={ecencyToken}
         onSignMessage={onSignMessage}

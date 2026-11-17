@@ -9,8 +9,14 @@ interface ReplyModalProps {
   onCommentSubmitted: (parentAuthor: string, parentPermlink: string, body: string) => void | boolean | Promise<void | boolean>;
   currentUser?: string;
   threeSpeakToken?: string;
+  /** Server-side image upload for accounts that cannot sign (web2 / EVM). */
+  uploadImageFn?: (file: Blob, filename?: string) => Promise<string>;
   encoderUrl?: string;
   ecencyToken?: string;
+  /** Posting-key signer for images.hive.blog uploads. */
+  onSignMessage?: (message: string) => Promise<string>;
+  /** Hive account name used with onSignMessage. */
+  signingUsername?: string;
   threeSpeakApiKey?: string;
   mintUploadTokenFn?: (opts: { uploadHost: string; owner: string; frontendApp?: string; short: boolean }) => Promise<any>;
   setThumbnailFn?: (uploadHost: string, permlink: string, thumbnailUrl: string) => Promise<boolean>;
@@ -27,8 +33,11 @@ const ReplyModal = ({
   onCommentSubmitted,
   currentUser,
   threeSpeakToken,
+  uploadImageFn,
   encoderUrl,
   ecencyToken,
+  onSignMessage,
+  signingUsername,
   threeSpeakApiKey,
   mintUploadTokenFn,
   setThumbnailFn,
@@ -102,8 +111,11 @@ const ReplyModal = ({
             replyDraft
             placeholder={`Reply to @${parentAuthor}...`}
             threeSpeakToken={threeSpeakToken}
+            uploadImageFn={uploadImageFn}
             encoderUrl={encoderUrl}
             ecencyToken={ecencyToken}
+            onSignMessage={onSignMessage}
+            signingUsername={signingUsername}
             threeSpeakApiKey={threeSpeakApiKey}
             mintUploadTokenFn={mintUploadTokenFn}
             setThumbnailFn={setThumbnailFn}

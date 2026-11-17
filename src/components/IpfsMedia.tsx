@@ -13,6 +13,7 @@
  * pointing at the same CID share one network call.
  */
 import { useEffect, useState } from "react";
+import { isIpfsVideoUrl, proxyLegacyIpfsImageUrl } from "../utils/ipfsImageProxy";
 
 export const IPFS_URL_REGEX =
   /https?:\/\/[^\s"'<>)]+\/ipfs\/[a-zA-Z0-9]+(?:\/[^\s"'<>)]*)?/gi;
@@ -57,7 +58,8 @@ export function getIpfsKind(url: string): Promise<IpfsKind> {
     return Promise.resolve('video');
   }
 
-  const probe = fetch(url, { method: "HEAD" })
+  const probeUrl = isIpfsVideoUrl(url) ? url : proxyLegacyIpfsImageUrl(url);
+  const probe = fetch(probeUrl, { method: "HEAD" })
     .then((res) => {
       const ct = (res.headers.get("content-type") ?? "").toLowerCase();
       if (ct.startsWith("image/")) {
@@ -68,9 +70,9 @@ export function getIpfsKind(url: string): Promise<IpfsKind> {
         kindCache.set(url, "video");
         return "video" as IpfsKind;
       }
-      return probeAsImage(url);
+      return probeAsImage(probeUrl);
     })
-    .catch(() => probeAsImage(url))
+    .catch(() => probeAsImage(probeUrl))
     .finally(() => {
       inFlight.delete(url);
     });
@@ -136,11 +138,11 @@ export const IpfsMedia: React.FC<IpfsMediaProps> = ({
           className={`relative flex h-full w-full items-center justify-center overflow-hidden rounded-lg bg-[var(--hrk-bg-surface-sunken)] ${className ?? ""}`}
           aria-label="Open image preview"
         >
-          <img src={url} alt="" loading="lazy" className="max-h-full max-w-full object-contain" />
+          <img src={proxyLegacyIpfsImageUrl(url)} alt="" loading="lazy" className="max-h-full max-w-full object-contain" />
         </button>
       );
     }
-    return <img src={url} alt="" className={`max-h-full max-w-full object-contain ${className ?? ""}`} />;
+    return <img src={proxyLegacyIpfsImageUrl(url)} alt="" className={`max-h-full max-w-full object-contain ${className ?? ""}`} />;
   }
 
   if (kind === "video") {

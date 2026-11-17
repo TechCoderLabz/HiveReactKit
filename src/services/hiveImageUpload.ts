@@ -103,84 +103,38 @@ export async function uploadToEcencyImages(
 }
 
 /**
- * POST a file to ThreeSpeak's image upload endpoint (encoder.hivesuite.app).
- * Requires user JWT authorization.
+ * Uploader that does not sign in the browser. HiveSuite uses this for web2
+ * accounts: the hive-inbox `POST /upload/image` route signs the bytes with
+ * the web2 proxy account and returns an `images.hive.blog` URL.
  */
-export async function uploadToThreeSpeakImages(
-  token: string,
-  file: Blob,
-  filename?: string,
-  options?: { signal?: AbortSignal; encoderUrl?: string },
-): Promise<string> {
-  if (!token) throw new Error('JWT token is required for ThreeSpeak image upload')
-  const baseUrl = (options?.encoderUrl || 'https://encoder.hivesuite.app').replace(/\/$/, '')
-  const formData = new FormData()
-  if (filename) formData.append('file', file, filename)
-  else formData.append('file', file)
-
-  const response = await fetch(`${baseUrl}/upload/image`, {
-    method: 'POST',
-    headers: {
-      Authorization: token.startsWith('Bearer ') ? token : `Bearer ${token}`,
-    },
-    body: formData,
-    signal: options?.signal,
-  })
-
-  if (!response.ok) {
-    let errMsg = `ThreeSpeak image upload failed: ${response.statusText}`
-    try {
-      const errData = (await response.json()) as { error?: string; message?: string }
-      if (errData?.error) errMsg = errData.error
-      else if (errData?.message) errMsg = errData.message
-    } catch {
-      /* ignore JSON parse error */
-    }
-    throw new Error(errMsg)
-  }
-
-  const data = (await response.json()) as { url?: string; link?: string; image?: string }
-  let url = data.url || data.link || data.image
-  if (!url) throw new Error('No URL returned from ThreeSpeak image upload')
-
-  if (url.startsWith('ipfs://')) {
-    const cid = url.replace(/^ipfs:\/\//, '')
-    url = `https://ipfs.3speak.tv/ipfs/${cid}`
-  } else if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    url = `https://ipfs.3speak.tv/ipfs/${url}`
-  }
-
-  return url
-}
+export type ProxyImageUploadFn = (file: Blob, filename?: string) => Promise<string>
 
 export interface UploadImageWithFallbackOptions {
-  /** ThreeSpeak user JWT token — tried first (default). */
-  threeSpeakToken?: string
-  /** Encoder base URL (defaults to https://encoder.hivesuite.app). */
-  encoderUrl?: string
-  /** Ecency token — tried as final fallback. */
+  /** Ecency token — used when signed Hive upload is unavailable or fails. */
   ecencyToken?: string
-  /** Signer for the signed `images.hive.blog` fallback (tried second). */
+  /** Signer for `images.hive.blog` (Keychain, HiveAuth, or a posting-key signer). Tried first. */
   onSignMessage?: PostingSignMessageFn
-  /** Hive username used for the signed `images.hive.blog` fallback. */
+  /** Hive username used for the signed `images.hive.blog` upload. */
   signingUsername?: string
+  /**
+   * Server-side uploader for accounts that cannot sign (web2). Tried when
+   * Hive signing and Ecency are both unavailable, and after they fail.
+   */
+  uploadImageFn?: ProxyImageUploadFn
   /** Filename to send with the multipart body. */
   filename?: string
   /** Abort signal applied to upload requests. */
   signal?: AbortSignal
-  /** Mirrors `UploadToHiveImagesOptions` — fires while the wallet sign
-   *  step is in flight on the fallback path so the caller can flash the
-   *  "Open Keychain App & Approve" UX. */
+  /** Fires while the wallet sign step is in flight. */
   onSignStart?: () => void
   onSignEnd?: () => void
 }
 
 /**
- * Shared image upload helper with fallback support:
- *   1. Try ThreeSpeak (encoder.hivesuite.app) first (default).
- *   2. If that fails (or no token), try Hive image proxy (images.hive.blog).
- *   3. If that fails (or no signer), try Ecency uploader (images.ecency.com).
- *   4. If all fail -> throw.
+ * Image upload:
+ *   1. Signed `images.hive.blog` upload when a posting signer is available.
+ *   2. Ecency (`images.ecency.com`) when an Ecency token is available.
+ *   3. `uploadImageFn` (web2 proxy on hive-inbox) otherwise.
  *
  * Returns the public URL of the uploaded image.
  */
@@ -188,28 +142,16 @@ export async function uploadImageWithFallback(
   file: Blob,
   options: UploadImageWithFallbackOptions,
 ): Promise<string> {
-  const { threeSpeakToken, encoderUrl, ecencyToken, onSignMessage, signingUsername, filename, signal } = options
-  const canThreeSpeak = Boolean(threeSpeakToken)
-  const canHiveFallback = Boolean(onSignMessage && signingUsername)
-  const canEcencyFallback = Boolean(ecencyToken)
+  const { ecencyToken, onSignMessage, signingUsername, uploadImageFn, filename, signal } = options
+  const canHive = Boolean(onSignMessage && signingUsername)
+  const canEcency = Boolean(ecencyToken)
+  const canProxy = Boolean(uploadImageFn)
 
-  if (!canThreeSpeak && !canHiveFallback && !canEcencyFallback) {
+  if (!canHive && !canEcency && !canProxy) {
     throw new Error('No upload method configured')
   }
 
-  // 1. ThreeSpeak (default)
-  if (canThreeSpeak) {
-    try {
-      return await uploadToThreeSpeakImages(threeSpeakToken!, file, filename, { signal, encoderUrl })
-    } catch (threeSpeakErr) {
-      if (signal?.aborted) throw threeSpeakErr
-      if (!canHiveFallback && !canEcencyFallback) throw threeSpeakErr
-      console.warn('[uploadImageWithFallback] ThreeSpeak upload failed, falling back to Hive image proxy:', threeSpeakErr)
-    }
-  }
-
-  // 2. Hive's image proxy (fallback 1)
-  if (canHiveFallback) {
+  if (canHive) {
     try {
       return await uploadToHiveImages(onSignMessage!, signingUsername!, file, filename, {
         onSignStart: options.onSignStart,
@@ -218,14 +160,23 @@ export async function uploadImageWithFallback(
       })
     } catch (hiveErr) {
       if (signal?.aborted) throw hiveErr
-      if (!canEcencyFallback) throw hiveErr
-      console.warn('[uploadImageWithFallback] Hive image proxy upload failed, falling back to Ecency uploader:', hiveErr)
+      if (!canEcency && !canProxy) throw hiveErr
+      console.warn('[uploadImageWithFallback] Hive image upload failed, trying the next host:', hiveErr)
     }
   }
 
-  // 3. Ecency uploader (fallback 2)
-  if (canEcencyFallback) {
-    return await uploadToEcencyImages(ecencyToken!, file, signal)
+  if (canEcency) {
+    try {
+      return await uploadToEcencyImages(ecencyToken!, file, signal)
+    } catch (ecencyErr) {
+      if (signal?.aborted) throw ecencyErr
+      if (!canProxy) throw ecencyErr
+      console.warn('[uploadImageWithFallback] Ecency upload failed, trying the proxy uploader:', ecencyErr)
+    }
+  }
+
+  if (canProxy) {
+    return await uploadImageFn!(file, filename)
   }
 
   throw new Error('All image upload methods failed')

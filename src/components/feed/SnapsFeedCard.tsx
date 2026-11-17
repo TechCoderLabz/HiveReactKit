@@ -15,6 +15,7 @@
  * No app-specific stores: every action is forwarded via callbacks so
  * the host app owns the data plane.
  */
+import { legacyIpfsImageProxyFn } from '../../utils/ipfsImageProxy';
 import { useCallback, useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react';
 import { Repeat2, Heart, MessageCircle, Gift } from 'lucide-react';
 import type { ThreeSpeakPlayerInjectedProps } from '../ThreeSpeakPlayer';
@@ -438,15 +439,7 @@ const SnapsFeedCard: FC<SnapsFeedCardProps> = ({
         usertagUrlFn: (user: string) => getUserUrl ? getUserUrl(user) : `/@${user}`,
         hashtagUrlFn: (tag: string) => getTagUrl ? getTagUrl(tag) : `/tags/${tag}`,
         convertHiveUrls: true,
-        imageProxyFn: (url: string) => {
-          if (!url) return url;
-          const trimmed = url.trim();
-          if (trimmed.includes('/ipfs/') || trimmed.startsWith('ipfs://')) {
-            const cid = trimmed.split('/ipfs/').pop()?.replace(/^ipfs:\/\//, '');
-            if (cid) return `https://ipfs.3speak.tv/ipfs/${cid}`;
-          }
-          return url;
-        },
+        imageProxyFn: legacyIpfsImageProxyFn,
       });
     } catch {
       return null;

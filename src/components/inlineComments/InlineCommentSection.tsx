@@ -58,8 +58,14 @@ interface InlineCommentSectionProps {
     ipfsGateway?: string;
   };
   threeSpeakToken?: string;
+  /** Server-side image upload for accounts that cannot sign (web2 / EVM). */
+  uploadImageFn?: (file: Blob, filename?: string) => Promise<string>;
   encoderUrl?: string;
   ecencyToken?: string;
+  /** Posting-key signer for images.hive.blog uploads. */
+  onSignMessage?: (message: string) => Promise<string>;
+  /** Hive account name used with onSignMessage. */
+  signingUsername?: string;
   threeSpeakApiKey?: string;
   threeSpeakUploadHost?: string;
   threeSpeakFrontendApp?: string;
@@ -168,8 +174,11 @@ export default function InlineCommentSection({
   onSubmitComment,
   onClickCommentUpvote,
   threeSpeakToken,
+  uploadImageFn,
   encoderUrl,
   ecencyToken,
+  onSignMessage,
+  signingUsername,
   threeSpeakApiKey,
   threeSpeakUploadHost,
   threeSpeakFrontendApp,
@@ -472,8 +481,11 @@ export default function InlineCommentSection({
             replyDraft
             placeholder={`Write a comment to @${author}...`}
             threeSpeakToken={threeSpeakToken}
+            uploadImageFn={uploadImageFn}
             encoderUrl={encoderUrl}
             ecencyToken={ecencyToken}
+            onSignMessage={onSignMessage}
+            signingUsername={signingUsername}
             threeSpeakApiKey={threeSpeakApiKey}
             threeSpeakUploadHost={threeSpeakUploadHost}
             threeSpeakFrontendApp={threeSpeakFrontendApp}
@@ -559,8 +571,11 @@ export default function InlineCommentSection({
               isWeb2User={isWeb2User}
               onClickCommentUpvote={onClickCommentUpvote}
               threeSpeakToken={threeSpeakToken}
+              uploadImageFn={uploadImageFn}
               encoderUrl={encoderUrl}
               ecencyToken={ecencyToken}
+              onSignMessage={onSignMessage}
+              signingUsername={signingUsername}
               threeSpeakApiKey={threeSpeakApiKey}
               threeSpeakUploadHost={threeSpeakUploadHost}
               threeSpeakFrontendApp={threeSpeakFrontendApp}

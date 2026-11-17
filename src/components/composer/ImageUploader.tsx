@@ -1,6 +1,6 @@
 import React, { useEffect, useImperativeHandle, useRef, useState, useCallback } from "react";
 import { Image, X, Loader2, Crop as CropIcon, EyeOff, ChevronLeft, ChevronRight, Trash2, RotateCcw, Check, AlertCircle } from "lucide-react";
-import { uploadImageWithFallback, type PostingSignMessageFn } from "../../services/hiveImageUpload";
+import { uploadImageWithFallback, type PostingSignMessageFn, type ProxyImageUploadFn } from "../../services/hiveImageUpload";
 import { prepareImageForUpload, cropImage, type CropRect, type BlurRect } from "../../utils/imageProcessor";
 import ImageCropperModal from "./ImageCropperModal";
 
@@ -58,10 +58,12 @@ export interface ImageUploaderProps {
   onImagesUploaded?: (imageUrls: string[]) => void;
   /** Allow picking several files in the file picker (default true). */
   multiple?: boolean;
-  /** ThreeSpeak user JWT token for primary image upload API */
+  /** @deprecated Image uploads no longer use 3Speak. Ignored. */
   threeSpeakToken?: string;
-  /** Encoder base URL (defaults to https://encoder.hivesuite.app) */
+  /** @deprecated Image uploads no longer use the encoder. Ignored. */
   encoderUrl?: string;
+  /** Server-side image upload for accounts that cannot sign (web2). */
+  uploadImageFn?: ProxyImageUploadFn;
   /** Ecency image hosting token for upload authentication */
   ecencyToken?: string;
   /** Optional signer used when the Ecency upload fails. Signs a posting-key message. */
@@ -98,8 +100,7 @@ const MAX_BATCH = 20;
 const ImageUploader = React.forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   onImageUploaded,
   onImagesUploaded,
-  threeSpeakToken,
-  encoderUrl,
+  uploadImageFn,
   ecencyToken,
   onSignMessage,
   signingUsername,
@@ -256,8 +257,7 @@ const ImageUploader = React.forwardRef<ImageUploaderRef, ImageUploaderProps>(({
 
   const uploadOne = async (item: BatchItem, signal: AbortSignal): Promise<string> => {
     return uploadImageWithFallback(item.staged, {
-      threeSpeakToken,
-      encoderUrl,
+      uploadImageFn,
       ecencyToken,
       onSignMessage,
       signingUsername,
