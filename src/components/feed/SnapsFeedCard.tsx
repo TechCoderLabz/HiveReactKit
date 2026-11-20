@@ -19,7 +19,7 @@ import { legacyIpfsImageProxyFn } from '../../utils/ipfsImageProxy';
 import { useCallback, useEffect, useMemo, useRef, useState, type FC, type ReactNode } from 'react';
 import { Repeat2, Heart, MessageCircle, Gift } from 'lucide-react';
 import type { ThreeSpeakPlayerInjectedProps } from '../ThreeSpeakPlayer';
-import { createHiveRenderer } from '@snapie/renderer';
+import { createHiveRenderer } from '../../utils/safeHiveRenderer';
 import { apiService } from '@/services/apiService';
 import type { Discussion } from '@/types/comment';
 import { useSupporterTier, getSupporterRing, getSupporterBadge } from '@/context/SupporterTierContext';

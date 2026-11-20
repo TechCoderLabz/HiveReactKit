@@ -8,7 +8,7 @@ import { ThumbsUp, MessageSquare, ChevronDown, ChevronUp, Clock, X, Share2, Gift
 import { isRestrictedDirectVoter } from '@/utils/postVotes';
 import { MoreActionsMenu } from '../actionButtons/MoreActionsMenu';
 import { formatDistanceToNow } from 'date-fns';
-import { createHiveRenderer } from '@snapie/renderer';
+import { createHiveRenderer } from '../../utils/safeHiveRenderer';
 import { Discussion } from '@/types/comment';
 import { apiService } from '@/services/apiService';
 import { VoteSlider, ALREADY_VOTED_MESSAGE } from '../VoteSlider';

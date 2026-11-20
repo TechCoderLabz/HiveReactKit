@@ -1,6 +1,12 @@
+import { BLOCKED_IMAGE_PLACEHOLDER, isBlockedImageUrl } from './blockedImageHosts';
+
 export const formatThumbnailUrl = (thumbnail?: string): string => {
   if (!thumbnail) {
     return '/placeholder.svg';
+  }
+
+  if (isBlockedImageUrl(thumbnail)) {
+    return BLOCKED_IMAGE_PLACEHOLDER;
   }
 
   // Handle IPFS URLs

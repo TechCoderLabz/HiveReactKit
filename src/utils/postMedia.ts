@@ -7,6 +7,7 @@
  * strip.
  */
 import type { Post } from '@/types/post';
+import { BLOCKED_IMAGE_PLACEHOLDER, isBlockedImageUrl } from './blockedImageHosts';
 
 export type PostMedia =
   | { kind: 'image'; url: string }
@@ -118,7 +119,10 @@ export function extractPostMedia(post: Post): PostMedia[] {
     media.push({ kind: 'twitter', id: m[1], url: m[0] });
   }
 
-  return dedupe(media);
+  // Never hand a blocked-host image URL to a renderer.
+  return dedupe(media).map((item) =>
+    item.kind === 'image' && isBlockedImageUrl(item.url) ? { ...item, url: BLOCKED_IMAGE_PLACEHOLDER } : item,
+  );
 }
 
 /** Pull `?v=author/permlink` out of any 3Speak URL shape. Returns null

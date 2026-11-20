@@ -18,7 +18,7 @@ import { activityService } from "@/services/activityService";
 import { userService } from "@/services/userService";
 import { getReputationDetails } from "@/utils/reputation";
 import { UserChannelItem, ActivityDisplayItem } from "@/types/activity";
-import { createHiveRenderer } from "@snapie/renderer";
+import { createHiveRenderer } from '../utils/safeHiveRenderer';
 import { TranslatedBody } from "./TranslatedBody";
 
 interface UserChannelProps {
