@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { useSupporterTier, getSupporterRing, getSupporterBadge } from '@/context/SupporterTierContext';
 import { ThumbsUp, MessageSquare, MoreHorizontal, Clock, Ban } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { createHiveRenderer } from '@snapie/renderer';
+import { createHiveRenderer } from '../../utils/safeHiveRenderer';
 import { apiService } from '@/services/apiService';
 import { VoteSlider, ALREADY_VOTED_MESSAGE } from '../VoteSlider';
 import { toast } from '@/index';

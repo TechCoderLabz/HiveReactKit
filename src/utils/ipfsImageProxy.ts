@@ -3,6 +3,8 @@
  * That gateway no longer serves image bytes. Video manifests stay on their
  * original URL — the 3Speak player resolves those itself.
  */
+import { BLOCKED_IMAGE_PLACEHOLDER, isBlockedImageUrl } from './blockedImageHosts'
+
 const HIVE_IMAGE_PROXY = 'https://images.hive.blog'
 const PUBLIC_IPFS_GATEWAY = 'https://ipfs.io'
 
@@ -51,6 +53,7 @@ function isLegacyThreeSpeakIpfsImage(url: string): boolean {
 export function proxyLegacyIpfsImageUrl(url: string): string {
   if (!url) return url
   const trimmed = url.trim()
+  if (isBlockedImageUrl(trimmed)) return BLOCKED_IMAGE_PLACEHOLDER
   if (!trimmed || !isLegacyThreeSpeakIpfsImage(trimmed)) return trimmed
   const cidPath = extractIpfsCidPath(trimmed)
   if (!cidPath) return trimmed

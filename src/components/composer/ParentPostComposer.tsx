@@ -49,7 +49,7 @@ import {
   Languages,
   RotateCcw,
 } from 'lucide-react';
-import { createHiveRenderer } from '@snapie/renderer';
+import { createHiveRenderer } from '../../utils/safeHiveRenderer';
 import { ThreeSpeakPlayer } from '../ThreeSpeakPlayer';
 import { TranslatedBody } from '../TranslatedBody';
 import { caretOffsetInTextarea, MentionSuggest, useMentionAutocomplete } from '../comments/MentionSuggest';

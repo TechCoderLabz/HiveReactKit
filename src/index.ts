@@ -230,8 +230,9 @@ export { CURATION_REQUEST_ONLY_ACCOUNTS, RESTRICTED_DIRECT_VOTE_ACCOUNTS, isRest
 // Re-exports from @snapie/renderer — Hive markdown renderer used internally
 // by HiveDetailPost / AddCommentInput / InlineCommentItem. Surfaced so
 // consumers can render Hive bodies with the exact same configuration without
-// installing @snapie/renderer themselves.
-export { createHiveRenderer, renderHiveMarkdown, type HiveRendererOptions } from '@snapie/renderer';
+// installing @snapie/renderer themselves. The output has images from blocked
+// hosts (see utils/blockedImageHosts) replaced with a neutral placeholder.
+export { createHiveRenderer, renderHiveMarkdown, type HiveRendererOptions } from './utils/safeHiveRenderer';
 
 // i18n — wrap your app in <HiveLanguageProvider language={...}> to translate
 // every Hive content body rendered by the kit (post bodies, comments,
@@ -360,6 +361,17 @@ export {
   proxyLegacyIpfsImageUrl,
   legacyIpfsImageProxyFn,
 } from './utils/ipfsImageProxy';
+export {
+  BLOCKED_IMAGE_TLDS,
+  BLOCKED_IMAGE_PLACEHOLDER,
+  isBlockedHostname,
+  isBlockedImageUrl,
+  filterBlockedImageUrl,
+  filterBlockedSrcset,
+  filterBlockedCssUrls,
+  stripBlockedImagesFromHtml,
+} from './utils/blockedImageHosts';
+export { installBlockedImageGuard } from './utils/blockedImageGuard';
 
 // Store
 export * from './store/walletStore';

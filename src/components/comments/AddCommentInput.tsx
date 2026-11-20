@@ -42,7 +42,7 @@ import BeneficiariesEditor from '../composer/BeneficiariesEditor';
 import type { PollData } from '../composer/PollCreator';
 import { TemplateModel, templateService } from '../../services/templateService';
 import { uploadImageWithFallback, type PostingSignMessageFn, type ProxyImageUploadFn } from '../../services/hiveImageUpload';
-import { createHiveRenderer } from '@snapie/renderer';
+import { createHiveRenderer } from '../../utils/safeHiveRenderer';
 import { caretOffsetInTextarea, MentionSuggest, useMentionAutocomplete } from './MentionSuggest';
 import { useTransliteration } from '../../hooks/useTransliteration';
 import TransliterationMenu from '../composer/TransliterationMenu';

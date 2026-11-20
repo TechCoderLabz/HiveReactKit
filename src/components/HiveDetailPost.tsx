@@ -48,7 +48,7 @@ import { createPortal } from 'react-dom';
 import { PostActionButton } from './actionButtons/PostActionButton';
 import { SelectionTranslator } from './SelectionTranslator';
 import { LanguagePickerButton } from './LanguagePickerButton';
-import { createHiveRenderer } from '@snapie/renderer';
+import { createHiveRenderer } from '../utils/safeHiveRenderer';
 import InlineCommentSection from './inlineComments/InlineCommentSection';
 import { parseHiveFrontendUrl, preLinkMentions, preLinkUrls, preLinkHashtags } from '@/utils/hiveLinks';
 import { TranslatedBody } from './TranslatedBody';
