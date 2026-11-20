@@ -2107,9 +2107,9 @@ export function HiveDetailPost({
   // Kept as a safety net for edge cases where a bare Odysee URL slips through.
 
   // Intercept anchor clicks inside the rendered body. Two policies:
-  //   - Hive-ecosystem URLs (peakd, hive.blog, ecency, inleo) → keep the
-  //     reader inside the app via `onUserClick` / `onNavigateToPost`, same
-  //     tab.
+  //   - In-app links (root-relative `/@user…`, hivesuite.app URLs) → keep
+  //     the reader inside the app via `onUserClick` / `onNavigateToPost`,
+  //     same tab. Other Hive frontends (peakd, ecency, …) are NOT rerouted.
   //   - Any other external `http(s)` URL → force a new tab so the post
   //     surface stays put. The renderer doesn't add `target="_blank"`, so
   //     without this generic links like https://hangout.3speak.tv/room/…
@@ -2124,7 +2124,16 @@ export function HiveDetailPost({
       const href = anchor.getAttribute('href');
       if (!href) return;
 
-      const target = parseHiveFrontendUrl(href);
+      // Links the author wrote to other sites (peakd, ecency, travelfeed,
+      // worldmappin, …) are no longer rerouted into HiveSuite: they open as
+      // written, in a new tab (handled at the end of this handler).
+      // Rerouting broke referral links and pages that only exist on those
+      // sites. Only in-app links still route in-app: root-relative paths
+      // (e.g. the `/@user` links the renderer builds for @mentions) and
+      // hivesuite.app URLs.
+      const isAbsoluteExternal =
+        /^https?:\/\//i.test(href) && !/^https?:\/\/(?:www\.)?hivesuite\.app(?:[/?#]|$)/i.test(href);
+      const target = isAbsoluteExternal ? null : parseHiveFrontendUrl(href);
       if (target) {
         if (target.kind === 'post' && target.author && onNavigateToPost) {
           e.preventDefault();
@@ -2149,17 +2158,19 @@ export function HiveDetailPost({
         }
       }
 
-      if (href.includes('worldmappin.com')) {
-        e.preventDefault();
-        if (onNavigateToMap) {
-          onNavigateToMap();
-        } else if (onNavigateToPost) {
-          onNavigateToPost('dashboard', 'map');
-        } else {
-          window.location.hash = '#/dashboard/map';
-        }
-        return;
-      }
+      // Disabled: worldmappin.com links open as written (new tab) instead of
+      // being redirected to the in-app map.
+      // if (href.includes('worldmappin.com')) {
+      //   e.preventDefault();
+      //   if (onNavigateToMap) {
+      //     onNavigateToMap();
+      //   } else if (onNavigateToPost) {
+      //     onNavigateToPost('dashboard', 'map');
+      //   } else {
+      //     window.location.hash = '#/dashboard/map';
+      //   }
+      //   return;
+      // }
 
       // Non-Hive external link — open in a new tab.
       if (/^https?:\/\//i.test(href)) {
