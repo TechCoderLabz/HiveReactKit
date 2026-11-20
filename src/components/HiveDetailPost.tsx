@@ -612,78 +612,84 @@ export function HiveDetailPost({
   const [originalPost, setOriginalPost] = useState<Post | null>(null);
   const [loadingOriginalPost, setLoadingOriginalPost] = useState(false);
 
-  // Recommendations state & pagination calculations
-  const [recommendedPosts, setRecommendedPosts] = useState<Post[]>([]);
-  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  // Two separate lists:
+  //  - navPosts: the feed the reader came from (contextPosts). Drives only
+  //    prev/next and the "n/N" pager, and is handed on when navigating.
+  //  - authorPosts: the author's own top-level posts (sort "posts", so no
+  //    reblogs and no replies/snaps). Drives the "More from author" panel.
+  const [authorPostsAll, setAuthorPostsAll] = useState<Post[]>([]);
   const recsRef = useRef<HTMLDivElement>(null);
   const recsScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (contextPosts && contextPosts.length > 0) {
-      setRecommendedPosts(contextPosts);
-      setLoadingRecommendations(false);
-      return;
-    }
-
-    setLoadingRecommendations(true);
+    const cleanAuthor = author.toLowerCase().replace(/^@/, '');
+    setAuthorPostsAll([]);
     let active = true;
-    userService.getUserBlogs(author, 12)
-      .then((blogs) => {
+    userService.getUserPosts(author, 12)
+      .then((posts) => {
         if (!active) return;
-        setRecommendedPosts(blogs || []);
+        setAuthorPostsAll(
+          (posts || []).filter(
+            (p) =>
+              (p.author || '').toLowerCase().replace(/^@/, '') === cleanAuthor &&
+              (p.depth === 0 || !p.parent_author),
+          ),
+        );
       })
       .catch((err) => {
-        console.error('Failed to load recommended posts:', err);
-      })
-      .finally(() => {
-        if (active) setLoadingRecommendations(false);
+        console.error('Failed to load posts from author:', err);
       });
     return () => {
       active = false;
     };
-  }, [author, contextPosts]);
+  }, [author]);
+
+  const navPosts = useMemo<Post[]>(
+    () => (contextPosts && contextPosts.length > 0 ? contextPosts : authorPostsAll),
+    [contextPosts, authorPostsAll],
+  );
+
+  const authorPosts = useMemo(() => {
+    const cleanPermlink = (permlink || '').toLowerCase().split('#')[0];
+    return authorPostsAll.filter((p) => (p.permlink || '').toLowerCase() !== cleanPermlink);
+  }, [authorPostsAll, permlink]);
 
   const currentIndex = useMemo(() => {
-    if (!permlink || recommendedPosts.length === 0) return -1;
+    if (!permlink || navPosts.length === 0) return -1;
     const cleanPermlink = permlink.toLowerCase().split('#')[0];
     const cleanAuthor = author.toLowerCase().replace(/^@/, '');
 
-    let idx = recommendedPosts.findIndex((p) => {
+    let idx = navPosts.findIndex((p) => {
       const pPermlink = (p.permlink || '').toLowerCase().split('#')[0];
       const pAuthor = (p.author || '').toLowerCase().replace(/^@/, '');
       return pPermlink === cleanPermlink && pAuthor === cleanAuthor;
     });
 
     if (idx === -1) {
-      idx = recommendedPosts.findIndex((p) => {
+      idx = navPosts.findIndex((p) => {
         const pPermlink = (p.permlink || '').toLowerCase().split('#')[0];
         return pPermlink === cleanPermlink;
       });
     }
     return idx;
-  }, [recommendedPosts, permlink, author]);
+  }, [navPosts, permlink, author]);
 
   const prevPost = useMemo(() => {
     if (currentIndex > 0) {
-      return recommendedPosts[currentIndex - 1];
+      return navPosts[currentIndex - 1];
     }
     return null;
-  }, [currentIndex, recommendedPosts]);
+  }, [currentIndex, navPosts]);
 
   const nextPost = useMemo(() => {
-    if (currentIndex >= 0 && currentIndex < recommendedPosts.length - 1) {
-      return recommendedPosts[currentIndex + 1];
+    if (currentIndex >= 0 && currentIndex < navPosts.length - 1) {
+      return navPosts[currentIndex + 1];
     }
-    if (currentIndex === -1 && recommendedPosts.length > 0) {
-      return recommendedPosts[0];
+    if (currentIndex === -1 && navPosts.length > 0) {
+      return navPosts[0];
     }
     return null;
-  }, [currentIndex, recommendedPosts]);
-
-  const isAllSameAuthor = useMemo(() => {
-    if (recommendedPosts.length === 0) return true;
-    return recommendedPosts.every(p => p.author.toLowerCase() === author.toLowerCase());
-  }, [recommendedPosts, author]);
+  }, [currentIndex, navPosts]);
 
   const scrollToRecommendations = () => {
     recsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -3177,15 +3183,17 @@ export function HiveDetailPost({
 
     </>
   );
+  const authorHeading = `More from @${post?.author || author}`;
+  const openAuthorPost = (p: Post) => onNavigateToPost?.(p.author, p.permlink, authorPostsAll);
   const recsBottomNode = (
     <>
-            {/* Mobile horizontal recommended carousel */}
-            {recommendedPosts.length > 1 && (
+            {/* Horizontal "More from @author" carousel */}
+            {authorPosts.length > 0 && (
               <div ref={recsRef} className={`${layout ? "block" : "block lg:hidden"} mt-8 mb-16 border-t border-[var(--hrk-border-subtle)] pt-6 pb-4`}>
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="text-sm font-semibold text-white flex items-center gap-1.5">
                     <Sparkles className="w-4 h-4 text-yellow-500" />
-                    {isAllSameAuthor ? `Recommended from @${post?.author || author}` : 'More trending posts'}
+                    {authorHeading}
                   </h4>
                 </div>
                 
@@ -3197,13 +3205,13 @@ export function HiveDetailPost({
                     scrollbarColor: 'rgba(255,255,255,0.25) transparent',
                   }}
                 >
-                  {recommendedPosts.filter(p => p.permlink !== permlink).map((p) => {
+                  {authorPosts.map((p) => {
                     const media = extractPostMedia(p);
                     const imageUrl = media.find(m => m.kind === 'image')?.url || `https://images.hive.blog/u/${p.author}/avatar`;
                     return (
                       <div
                         key={p.permlink}
-                        onClick={() => onNavigateToPost?.(p.author, p.permlink)}
+                        onClick={() => openAuthorPost(p)}
                         className="w-64 shrink-0 snap-start bg-[var(--hrk-bg-surface-raised)]/40 border border-[var(--hrk-border-subtle)] hover:bg-[var(--hrk-bg-surface-raised)]/80 hover:border-[var(--hrk-border-subtle-active)] transition-all duration-300 rounded-xl p-3 flex gap-3 cursor-pointer select-none group"
                       >
                         <img
@@ -3232,66 +3240,52 @@ export function HiveDetailPost({
             )}
     </>
   );
-  const recsSideNode = (
-    <>
-              {recommendedPosts.length > 1 && (
-                <div className="bg-[var(--hrk-bg-surface)]/60 border border-[var(--hrk-border-subtle)] backdrop-blur-md rounded-2xl p-5 shadow-lg ">
-                  <h4 className="text-sm font-semibold text-white mb-4 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-yellow-500" />
-                    {isAllSameAuthor ? `More from @${post?.author || author}` : 'More trending posts'}
-                  </h4>
-
-                  <div className="space-y-4">
-                    {recommendedPosts.map((p) => {
-                      const isCurrent = p.permlink.toLowerCase() === permlink.toLowerCase();
-                      const media = extractPostMedia(p);
-                      const imageUrl = media.find(m => m.kind === 'image')?.url || `https://images.hive.blog/u/${p.author}/avatar`;
-                      
-                      return (
-                        <div
-                          key={p.permlink}
-                          onClick={() => {
-                            if (!isCurrent) onNavigateToPost?.(p.author, p.permlink, recommendedPosts);
-                          }}
-                          className={`group flex gap-3 p-2 -mx-2 rounded-xl transition-all duration-300 ${
-                            isCurrent
-                              ? 'bg-blue-500/10 border border-blue-500/20 cursor-default'
-                              : 'cursor-pointer hover:bg-[var(--hrk-bg-surface-raised)]/60'
-                          }`}
-                        >
-                          <img
-                            src={imageUrl}
-                            alt=""
-                            className="w-16 h-16 rounded-lg object-cover bg-black/20 shrink-0 group-hover:scale-105 transition-transform duration-300"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = `https://images.hive.blog/u/${p.author}/avatar`;
-                            }}
-                          />
-                          <div className="flex-1 min-w-0 flex flex-col justify-between">
-                            <div>
-                              <h5 className={`text-xs font-semibold leading-snug group-hover:text-blue-400 transition-colors line-clamp-2 ${isCurrent ? 'text-blue-400' : 'text-white'}`}>
-                                {p.title}
-                              </h5>
-                            </div>
-                            <div className="flex items-center justify-between mt-1">
-                              <span className="text-[10px] text-[var(--hrk-text-tertiary)]">
-                                {formatDate(p.created)}
-                              </span>
-                              {isCurrent && (
-                                <span className="text-[9px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded-full font-medium">
-                                  Reading
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-    </>
+  const authorPostList = (
+    <div className="space-y-4">
+      {authorPosts.map((p) => {
+        const media = extractPostMedia(p);
+        const imageUrl = media.find(m => m.kind === 'image')?.url || `https://images.hive.blog/u/${p.author}/avatar`;
+        return (
+          <div
+            key={p.permlink}
+            onClick={() => openAuthorPost(p)}
+            className="group flex gap-3 p-2 -mx-2 rounded-xl transition-all duration-300 cursor-pointer hover:bg-[var(--hrk-bg-surface-raised)]/60"
+          >
+            <img
+              src={imageUrl}
+              alt=""
+              className="w-16 h-16 rounded-lg object-cover bg-black/20 shrink-0 group-hover:scale-105 transition-transform duration-300"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = `https://images.hive.blog/u/${p.author}/avatar`;
+              }}
+            />
+            <div className="flex-1 min-w-0 flex flex-col justify-between">
+              <h5 className="text-xs font-semibold leading-snug group-hover:text-blue-400 transition-colors line-clamp-2 text-white">
+                {p.title}
+              </h5>
+              <span className="text-[10px] text-[var(--hrk-text-tertiary)] mt-1">
+                {formatDate(p.created)}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
+  /** Standalone side panel: one card, one heading ("More from @author"). */
+  const renderAuthorSidePanel = (extraClass = '') => (
+    <div className={`bg-[var(--hrk-bg-surface)]/60 border border-[var(--hrk-border-subtle)] backdrop-blur-md rounded-2xl p-5 shadow-lg ${extraClass}`}>
+      <h4 className="text-sm font-semibold text-white mb-4 flex items-center gap-1.5">
+        <Sparkles className="w-4 h-4 text-yellow-500" />
+        {authorHeading}
+      </h4>
+      {authorPostList}
+    </div>
+  );
+  // In the stacked (narrow) layout the list sits inside the "More from author"
+  // collapsible, which already is the section heading — so render the bare
+  // list there (no nested card, no second heading).
+  const recsSideNode = authorPosts.length === 0 ? null : isWideLayout ? renderAuthorSidePanel() : authorPostList;
 
   return (
     <div className="dark flex flex-col h-full bg-[var(--hrk-bg-app)] relative" style={bgStyle}>
@@ -3394,12 +3388,12 @@ export function HiveDetailPost({
             </div>
 
             {/* Next/Prev Navigation — desktop only; on mobile these live in the ⚡ FAB */}
-            {recommendedPosts.length > 0 && (
+            {navPosts.length > 0 && (
               <div className="hidden lg:flex items-center gap-1 bg-[var(--hrk-bg-surface-raised)]/60 border border-[var(--hrk-border-subtle)] rounded-lg p-0.5 mr-2">
                 <button
                   type="button"
                   onClick={() => {
-                    if (prevPost) onNavigateToPost?.(prevPost.author, prevPost.permlink, recommendedPosts);
+                    if (prevPost) onNavigateToPost?.(prevPost.author, prevPost.permlink, navPosts);
                   }}
                   disabled={!prevPost}
                   className="p-1 hover:bg-[var(--hrk-bg-surface)] disabled:opacity-20 disabled:hover:bg-transparent rounded transition-colors flex-shrink-0 cursor-pointer disabled:cursor-not-allowed"
@@ -3408,12 +3402,12 @@ export function HiveDetailPost({
                   <ChevronLeft className="h-4 w-4 text-[var(--hrk-text-secondary)]" />
                 </button>
                 <span className="text-[10px] text-[var(--hrk-text-tertiary)] px-1 select-none font-medium">
-                  {currentIndex >= 0 ? `${currentIndex + 1}/${recommendedPosts.length}` : `0/${recommendedPosts.length}`}
+                  {currentIndex >= 0 ? `${currentIndex + 1}/${navPosts.length}` : `0/${navPosts.length}`}
                 </span>
                 <button
                   type="button"
                   onClick={() => {
-                    if (nextPost) onNavigateToPost?.(nextPost.author, nextPost.permlink, recommendedPosts);
+                    if (nextPost) onNavigateToPost?.(nextPost.author, nextPost.permlink, navPosts);
                   }}
                   disabled={!nextPost}
                   className="p-1 hover:bg-[var(--hrk-bg-surface)] disabled:opacity-20 disabled:hover:bg-transparent rounded transition-colors flex-shrink-0 cursor-pointer disabled:cursor-not-allowed"
@@ -3593,17 +3587,17 @@ export function HiveDetailPost({
                 </div>
               )}
 
-              {/* Recommendations scroll */}
-              {recommendedPosts.length > 1 && (
+              {/* "More from author" scroll */}
+              {authorPosts.length > 0 && (
                 <div className="flex items-center gap-3">
                   <span className="text-[11px] font-semibold text-white bg-gray-900 border border-gray-600 px-3 py-1 rounded-full shadow-lg whitespace-nowrap">
-                    Recommendations
+                    More from author
                   </span>
                   <button
                     type="button"
                     onClick={() => { scrollToRecommendations(); setFabOpen(false); }}
                     className="w-11 h-11 flex items-center justify-center bg-white/20 backdrop-blur-md border border-white/30 rounded-full shadow-lg hover:bg-white/30 hover:scale-110 active:scale-95 transition-all duration-150 cursor-pointer"
-                    aria-label="View recommended posts"
+                    aria-label="View more posts from this author"
                   >
                     <Sparkles className="h-5 w-5 text-yellow-300" />
                   </button>
@@ -3611,14 +3605,14 @@ export function HiveDetailPost({
               )}
 
               {/* Prev post */}
-              {recommendedPosts.length > 0 && (
+              {navPosts.length > 0 && (
                 <div className="flex items-center gap-3">
                   <span className="text-[11px] font-semibold text-white bg-gray-900 border border-gray-600 px-3 py-1 rounded-full shadow-lg whitespace-nowrap max-w-[160px] truncate">
                     {prevPost ? 'Previous Post' : 'No previous'}
                   </span>
                   <button
                     type="button"
-                    onClick={() => { if (prevPost) { onNavigateToPost?.(prevPost.author, prevPost.permlink, recommendedPosts); setFabOpen(false); } }}
+                    onClick={() => { if (prevPost) { onNavigateToPost?.(prevPost.author, prevPost.permlink, navPosts); setFabOpen(false); } }}
                     disabled={!prevPost}
                     className="w-11 h-11 flex items-center justify-center bg-white/20 backdrop-blur-md border border-white/30 rounded-full shadow-lg disabled:opacity-25 hover:bg-white/30 hover:scale-110 active:scale-95 transition-all duration-150 cursor-pointer disabled:cursor-not-allowed"
                     aria-label="Previous post"
@@ -3630,14 +3624,14 @@ export function HiveDetailPost({
               )}
 
               {/* Next post */}
-              {recommendedPosts.length > 0 && (
+              {navPosts.length > 0 && (
                 <div className="flex items-center gap-3">
                   <span className="text-[11px] font-semibold text-white bg-gray-900 border border-gray-600 px-3 py-1 rounded-full shadow-lg whitespace-nowrap max-w-[160px] truncate">
                     {nextPost ? 'Next Post' : 'No next'}
                   </span>
                   <button
                     type="button"
-                    onClick={() => { if (nextPost) { onNavigateToPost?.(nextPost.author, nextPost.permlink, recommendedPosts); setFabOpen(false); } }}
+                    onClick={() => { if (nextPost) { onNavigateToPost?.(nextPost.author, nextPost.permlink, navPosts); setFabOpen(false); } }}
                     disabled={!nextPost}
                     className="w-11 h-11 flex items-center justify-center bg-white/20 backdrop-blur-md border border-white/30 rounded-full shadow-lg disabled:opacity-25 hover:bg-white/30 hover:scale-110 active:scale-95 transition-all duration-150 cursor-pointer disabled:cursor-not-allowed"
                     aria-label="Next post"
@@ -3649,10 +3643,10 @@ export function HiveDetailPost({
               )}
 
               {/* Post index indicator */}
-              {recommendedPosts.length > 0 && (
+              {navPosts.length > 0 && (
                 <div className="self-end pr-1">
                   <span className="text-[10px] font-semibold text-white/80 bg-black/60 backdrop-blur-sm px-2.5 py-0.5 rounded-full shadow border border-white/10">
-                    {currentIndex >= 0 ? `${currentIndex + 1} / ${recommendedPosts.length}` : `0 / ${recommendedPosts.length}`}
+                    {currentIndex >= 0 ? `${currentIndex + 1} / ${navPosts.length}` : `0 / ${navPosts.length}`}
                   </span>
                 </div>
               )}
@@ -3780,7 +3774,7 @@ export function HiveDetailPost({
             post={postMainNode}
             comments={commentsNode}
             recsBottom={recsBottomNode}
-            recsSide={recommendedPosts.length > 1 ? recsSideNode : null}
+            recsSide={recsSideNode}
             authorCard={<AuthorInfoCard profile={profile} author={post.author} compact={!isWideLayout} onUserClick={onUserClick} />}
           />
         ) : (
@@ -3795,62 +3789,7 @@ export function HiveDetailPost({
             </div>
 
             <div className="hidden lg:block lg:col-span-4 sticky top-[72px] space-y-6">
-              {recommendedPosts.length > 1 && (
-                <div className="bg-[var(--hrk-bg-surface)]/60 border border-[var(--hrk-border-subtle)] backdrop-blur-md rounded-2xl p-5 shadow-lg max-h-[85vh] overflow-y-auto">
-                  <h4 className="text-sm font-semibold text-white mb-4 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-yellow-500" />
-                    {isAllSameAuthor ? `More from @${post?.author || author}` : 'More trending posts'}
-                  </h4>
-
-                  <div className="space-y-4">
-                    {recommendedPosts.map((p) => {
-                      const isCurrent = p.permlink.toLowerCase() === permlink.toLowerCase();
-                      const media = extractPostMedia(p);
-                      const imageUrl = media.find(m => m.kind === 'image')?.url || `https://images.hive.blog/u/${p.author}/avatar`;
-                      
-                      return (
-                        <div
-                          key={p.permlink}
-                          onClick={() => {
-                            if (!isCurrent) onNavigateToPost?.(p.author, p.permlink, recommendedPosts);
-                          }}
-                          className={`group flex gap-3 p-2 -mx-2 rounded-xl transition-all duration-300 ${
-                            isCurrent
-                              ? 'bg-blue-500/10 border border-blue-500/20 cursor-default'
-                              : 'cursor-pointer hover:bg-[var(--hrk-bg-surface-raised)]/60'
-                          }`}
-                        >
-                          <img
-                            src={imageUrl}
-                            alt=""
-                            className="w-16 h-16 rounded-lg object-cover bg-black/20 shrink-0 group-hover:scale-105 transition-transform duration-300"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = `https://images.hive.blog/u/${p.author}/avatar`;
-                            }}
-                          />
-                          <div className="flex-1 min-w-0 flex flex-col justify-between">
-                            <div>
-                              <h5 className={`text-xs font-semibold leading-snug group-hover:text-blue-400 transition-colors line-clamp-2 ${isCurrent ? 'text-blue-400' : 'text-white'}`}>
-                                {p.title}
-                              </h5>
-                            </div>
-                            <div className="flex items-center justify-between mt-1">
-                              <span className="text-[10px] text-[var(--hrk-text-tertiary)]">
-                                {formatDate(p.created)}
-                              </span>
-                              {isCurrent && (
-                                <span className="text-[9px] px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded-full font-medium">
-                                  Reading
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              {authorPosts.length > 0 && renderAuthorSidePanel('max-h-[85vh] overflow-y-auto')}
             </div>
             </div>
           </div>
