@@ -160,8 +160,8 @@ export { PostComposer, default as AddCommentInput } from './components/comments/
 export type { PostComposerProps, AddCommentInputProps } from './components/comments/AddCommentInput';
 
 // Composer components (Image, Audio, Video uploaders, GIF picker, Meme picker, Emoji picker, Template picker, Post Templates panel, CrossPost modal, ImageCropperModal)
-export { ImageUploader, AudioUploader, VideoUploader, GiphyPicker, YoutubePicker, configureYoutubeSearch, MemePicker, DecentMemesPicker, EmojiPicker, TemplatePicker, PostTemplatesPanel, PollCreator, BeneficiariesEditor, ParentPostComposer, ToolbarHelpModal, CrossPostModal, ImageCropperModal, bindVideoToHivePost, extractThreeSpeakPermlink, getThreeSpeakVideoStatus, selectUploadHost, mintUploadToken, uploadVideoWithToken, setThumbnailOn3Speak } from './components/composer';
-export type { ImageUploaderProps, AudioUploaderProps, AudioUploadResult, VideoUploaderProps, VideoUploadDetails, MintTokenResponse, UploadProgress, GiphyPickerProps, YoutubePickerProps, MemePickerProps, DecentMemesPickerProps, EmojiPickerProps, TemplatePickerProps, PostTemplatesPanelProps, PostTemplate, PostTemplatePayload, PollCreatorProps, PollData, BeneficiariesEditorProps, ParentPostComposerProps, ParentPostSubmitPayload, ToolbarHelpModalProps, ToolbarHelpEntry, CrossPostModalProps, ImageCropperModalProps } from './components/composer';
+export { ImageUploader, AudioUploader, VideoUploader, GiphyPicker, YoutubePicker, configureYoutubeSearch, MemePicker, DecentMemesPicker, EmojiPicker, TemplatePicker, PostTemplatesPanel, PollCreator, BeneficiariesEditor, ParentPostComposer, ToolbarHelpModal, CrossPostModal, ImageCropperModal, ImageWatermarkProvider, useImageWatermarkMode, bindVideoToHivePost, extractThreeSpeakPermlink, getThreeSpeakVideoStatus, selectUploadHost, mintUploadToken, uploadVideoWithToken, setThumbnailOn3Speak } from './components/composer';
+export type { ImageUploaderProps, AudioUploaderProps, AudioUploadResult, VideoUploaderProps, VideoUploadDetails, MintTokenResponse, UploadProgress, GiphyPickerProps, YoutubePickerProps, MemePickerProps, DecentMemesPickerProps, EmojiPickerProps, TemplatePickerProps, PostTemplatesPanelProps, PostTemplate, PostTemplatePayload, PollCreatorProps, PollData, BeneficiariesEditorProps, ParentPostComposerProps, ParentPostSubmitPayload, ToolbarHelpModalProps, ToolbarHelpEntry, CrossPostModalProps, ImageCropperModalProps, ImageWatermarkProviderProps } from './components/composer';
 
 
 // Common components
@@ -378,5 +378,9 @@ export * from './store/walletStore';
 
 // Image processing utils & types (Crop, Blur/Redact, Downsize)
 export * from './utils/imageProcessor';
+export { computeWatermarkRect, effectiveWatermark, normaliseWatermarkMode, watermarkDefaultFor, watermarkToggleVisible, watermarkNoteVisible } from './utils/watermark';
+export type { ImageWatermarkMode, WatermarkRect } from './utils/watermark';
+export { composeImageEdit } from './utils/imageEdit';
+export type { ImageEdit } from './utils/imageEdit';
 
 export { WindowedList, FEED_RENDER_WINDOW_SIZE, type WindowedListProps } from './components/common/WindowedList';

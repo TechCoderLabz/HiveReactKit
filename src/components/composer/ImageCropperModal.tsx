@@ -2,6 +2,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Crop, RotateCcw, Check, X, Pencil, Sparkles, Grid, Square, Trash2, Undo2 } from 'lucide-react';
 import type { CropRect, BlurRect, BlurStyle } from '../../utils/imageProcessor';
+import { watermarkNoteVisible, watermarkToggleVisible, type ImageWatermarkMode } from '../../utils/watermark';
 
 export interface ImageCropperModalProps {
   isOpen: boolean;
@@ -12,6 +13,13 @@ export interface ImageCropperModalProps {
   initialTool?: 'crop' | 'blur';
   /** Called when the user commits crop and blurs. Coordinates are 0..1 normalised. */
   onApply: (rect: CropRect, blurRects?: BlurRect[]) => void;
+  /** Watermark mode from the uploader. `default-on` shows an on/off switch,
+   *  `forced` shows a short note, `off` (default) shows nothing. */
+  watermarkMode?: ImageWatermarkMode;
+  /** Current watermark state of this image (initial switch position). */
+  watermarkEnabled?: boolean;
+  /** Called with the switch position when the user applies (before `onApply`). */
+  onWatermarkChange?: (enabled: boolean) => void;
 }
 
 interface Selection {
@@ -73,7 +81,21 @@ export function ImageCropperModal({
   src,
   initialTool = 'crop',
   onApply,
+  watermarkMode = 'off',
+  watermarkEnabled = true,
+  onWatermarkChange,
 }: ImageCropperModalProps) {
+  const showWatermarkSwitch = watermarkToggleVisible(watermarkMode);
+  const showWatermarkNote = watermarkNoteVisible(watermarkMode);
+  // Draft switch position; committed only when the user applies.
+  const [watermarkDraft, setWatermarkDraft] = useState<boolean>(watermarkEnabled);
+  // Reset the draft each time the popup opens (state adjusted during render,
+  // no effect needed).
+  const [draftOpenedFor, setDraftOpenedFor] = useState<boolean>(isOpen);
+  if (draftOpenedFor !== isOpen) {
+    setDraftOpenedFor(isOpen);
+    if (isOpen) setWatermarkDraft(watermarkEnabled);
+  }
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const [metrics, setMetrics] = useState<ImageMetrics | null>(null);
@@ -396,6 +418,7 @@ export function ImageCropperModal({
       style: b.style,
     }));
 
+    if (showWatermarkSwitch) onWatermarkChange?.(watermarkDraft);
     onApply(finalCrop, finalBlurs);
   };
 
@@ -706,6 +729,41 @@ export function ImageCropperModal({
             </>
           )}
         </div>
+
+        {(showWatermarkSwitch || showWatermarkNote) && (
+          <div className="px-4 sm:px-6 py-2.5 border-t border-[var(--hrk-border-default,#2b2f3a)] flex items-center justify-between gap-3 bg-[var(--hrk-bg-surface,#181a20)]">
+            {showWatermarkSwitch ? (
+              <label className="flex w-full items-center justify-between gap-3 cursor-pointer select-none">
+                <span className="flex flex-col">
+                  <span className="text-xs font-semibold text-white">HiveSuite watermark</span>
+                  <span className="text-[11px] text-[var(--hrk-text-secondary,#8f96a3)]">
+                    Small mark in the bottom-right corner of this image
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={watermarkDraft}
+                  aria-label="HiveSuite watermark"
+                  onClick={() => setWatermarkDraft((v) => !v)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                    watermarkDraft ? 'bg-[var(--hrk-brand,#e31337)]' : 'bg-[var(--hrk-bg-hover,#2b313c)] border border-[var(--hrk-border-subtle,#363c48)]'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                      watermarkDraft ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </label>
+            ) : (
+              <span className="text-[11px] text-[var(--hrk-text-secondary,#8f96a3)]">
+                Watermark is added on the free plan
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Footer Actions */}
         <div className="px-4 sm:px-6 py-3.5 border-t border-[var(--hrk-border-default,#2b2f3a)] flex items-center justify-between gap-3 bg-[var(--hrk-bg-surface-raised,#20242c)]">

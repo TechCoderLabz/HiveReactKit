@@ -47,6 +47,7 @@ import { caretOffsetInTextarea, MentionSuggest, useMentionAutocomplete } from '.
 import { useTransliteration } from '../../hooks/useTransliteration';
 import TransliterationMenu from '../composer/TransliterationMenu';
 import { isTransliterationSupported } from '../../services/transliterationService';
+import type { ImageWatermarkMode } from '../../utils/watermark';
 
 // Built and maintained by this account — the hivesuite.app beneficiary
 // (funds running the app on everyone else's behalf) is waived for them,
@@ -74,6 +75,11 @@ export interface PostComposerProps {
   encoderUrl?: string;
   /** Server-side image upload for accounts that cannot sign (web2). */
   uploadImageFn?: ProxyImageUploadFn;
+  /** HiveSuite watermark on images uploaded from this composer (image
+   *  uploader and meme generator): `forced` (always, no switch),
+   *  `default-on` (switch in the crop/blur popup) or `off`. When omitted,
+   *  the nearest `ImageWatermarkProvider` decides (default `off`). */
+  watermark?: ImageWatermarkMode;
   /** Ecency image hosting token — enables image/video thumbnail upload and paste/drag upload */
   ecencyToken?: string;
   /** Optional signer used when Ecency image uploads fail. Signs a posting-key message for images.hive.blog. */
@@ -321,6 +327,7 @@ const PostComposer = ({
   uploadImageFn,
   encoderUrl,
   ecencyToken,
+  watermark: imageWatermark,
   onSignMessage,
   signingUsername,
   threeSpeakApiKey,
@@ -1343,6 +1350,7 @@ const PostComposer = ({
         {!hideImage && canUploadImages && (
           <ImageUploader
             ref={imageUploaderRef}
+            watermark={imageWatermark}
             onImageUploaded={(url) => insertText(`![Image](${url})\n`)}
             onImagesUploaded={(urls) => insertText(urls.map((url) => `![Image](${url})\n`).join(''))}
             uploadImageFn={uploadImageFn}
@@ -2012,6 +2020,7 @@ const PostComposer = ({
         youtubeApiKey={youtubeApiKey}
       />
       <MemePicker
+        watermark={imageWatermark}
         isOpen={isMemeOpen}
         onClose={() => setIsMemeOpen(false)}
         onSelectMeme={(url) => { insertText(`![Meme](${url})`); setIsMemeOpen(false); }}
