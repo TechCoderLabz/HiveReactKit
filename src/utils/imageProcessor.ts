@@ -17,8 +17,16 @@
  * The helpers always re-encode through `<canvas>.toBlob`. Files that
  * are already small (under `softSizeLimit` *and* within the dimension
  * budget) skip processing entirely so a hand-prepared image isn't
- * silently re-compressed.
+ * silently re-compressed — unless a watermark is requested, which needs
+ * the canvas pass.
+ *
+ *   3. Watermark (opt-in, `watermark: true`): a small HiveSuite mark in
+ *      the bottom-right corner, drawn last (after crop, blur and resize)
+ *      on the final output size. Animated GIFs and images whose shorter
+ *      edge is under 200px are left without a mark.
  */
+
+import { computeWatermarkRect, WATERMARK_OPACITY } from './watermark';
 
 export interface PrepareImageOptions {
   /** Hard cap on the longest edge of the output image. */
@@ -28,6 +36,8 @@ export interface PrepareImageOptions {
   /** Files smaller than this are returned untouched if they also fit
    *  within `maxDimension`. */
   softSizeLimit?: number;
+  /** Draw the HiveSuite watermark on the output (see `watermark.ts`). */
+  watermark?: boolean;
 }
 
 // Full HD on the longest edge. Phones routinely shoot 4K (3840px) and
@@ -70,6 +80,52 @@ function canvasToBlob(canvas: HTMLCanvasElement, mime: string, quality: number):
   });
 }
 
+let watermarkImagePromise: Promise<{ img: HTMLImageElement; aspect: number }> | null = null;
+
+/** Decode the watermark artwork once; the module is only fetched when needed. */
+function loadWatermarkImage(): Promise<{ img: HTMLImageElement; aspect: number }> {
+  if (!watermarkImagePromise) {
+    watermarkImagePromise = import('./watermarkAsset')
+      .then(async ({ WATERMARK_DATA_URL, WATERMARK_ASPECT }) => ({
+        img: await loadImage(WATERMARK_DATA_URL),
+        aspect: WATERMARK_ASPECT,
+      }))
+      .catch((err) => {
+        watermarkImagePromise = null;
+        throw err;
+      });
+  }
+  return watermarkImagePromise;
+}
+
+/** True when an output of this size gets a watermark (big enough). */
+export function canWatermark(width: number, height: number): boolean {
+  return computeWatermarkRect(width, height, 4) !== null;
+}
+
+/**
+ * Draw the HiveSuite watermark in the bottom-right corner of `canvas`.
+ * Low opacity plus a soft shadow so it reads on light and dark photos.
+ * No-op for images too small to carry a mark.
+ */
+export async function applyWatermark(canvas: HTMLCanvasElement): Promise<void> {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  const { img, aspect } = await loadWatermarkImage();
+  const rect = computeWatermarkRect(canvas.width, canvas.height, aspect);
+  if (!rect) return;
+  ctx.save();
+  ctx.globalAlpha = WATERMARK_OPACITY;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+  ctx.shadowBlur = Math.max(2, Math.round(rect.height * 0.12));
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = Math.max(1, Math.round(rect.height * 0.03));
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, rect.x, rect.y, rect.width, rect.height);
+  ctx.restore();
+}
+
 /** Pick the output MIME. Preserve PNG (transparency-bearing) when the
  *  source was PNG; everything else gets squeezed through JPEG. */
 function pickOutputMime(sourceType: string): { mime: string; ext: string } {
@@ -93,20 +149,23 @@ export async function prepareImageForUpload(
   const jpegQuality = options.jpegQuality ?? DEFAULT_JPEG_QUALITY;
   const softSizeLimit = options.softSizeLimit ?? DEFAULT_SOFT_SIZE_LIMIT;
 
+  // Animated GIFs stay untouched (and unwatermarked): a canvas pass would
+  // freeze them on the first frame.
   if (file.type === 'image/gif') return file;
 
   const objectUrl = URL.createObjectURL(file);
   try {
     const img = await loadImage(objectUrl);
     const longest = Math.max(img.naturalWidth, img.naturalHeight);
-    // Already small enough — skip the round-trip through canvas.
-    if (longest <= maxDimension && file.size <= softSizeLimit) {
-      return file;
-    }
-
     const scale = longest > maxDimension ? maxDimension / longest : 1;
     const targetW = Math.round(img.naturalWidth * scale);
     const targetH = Math.round(img.naturalHeight * scale);
+    const watermark = !!options.watermark && canWatermark(targetW, targetH);
+    // Already small enough — skip the round-trip through canvas (a
+    // watermark always needs it).
+    if (!watermark && longest <= maxDimension && file.size <= softSizeLimit) {
+      return file;
+    }
 
     const canvas = document.createElement('canvas');
     canvas.width = targetW;
@@ -114,6 +173,7 @@ export async function prepareImageForUpload(
     const ctx = canvas.getContext('2d');
     if (!ctx) return file;
     ctx.drawImage(img, 0, 0, targetW, targetH);
+    if (watermark) await applyWatermark(canvas);
 
     const { mime, ext } = pickOutputMime(file.type);
     const blob = await canvasToBlob(canvas, mime, jpegQuality);
@@ -250,6 +310,9 @@ export async function cropImage(
         }
       }
     }
+
+    // Watermark last, on the final output size, after crop and blur.
+    if (options.watermark && file.type !== 'image/gif') await applyWatermark(canvas);
 
     const { mime, ext } = pickOutputMime(file.type);
     const blob = await canvasToBlob(canvas, mime, jpegQuality);

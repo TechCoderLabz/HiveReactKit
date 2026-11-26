@@ -22,6 +22,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Search, ImageIcon, Upload, Loader2, ArrowLeft, Wand2 } from 'lucide-react';
 import { uploadImageWithFallback, type PostingSignMessageFn, type ProxyImageUploadFn } from '../../services/hiveImageUpload';
+import { prepareImageForUpload } from '../../utils/imageProcessor';
+import { effectiveWatermark, type ImageWatermarkMode } from '../../utils/watermark';
+import { useImageWatermarkMode } from './ImageWatermarkContext';
 
 // Memegen returns dozens of fields per template; we only use a handful.
 interface MemegenTemplate {
@@ -57,6 +60,10 @@ export interface MemePickerProps {
   /** Mirrors `ImageUploader.onSigningStateChange` for "Open Keychain & Approve" UX. */
   onSigningStateChange?: (isSigning: boolean) => void;
   walletApprovalLabel?: string;
+  /** HiveSuite watermark on the generated meme: `forced` and `default-on`
+   *  add it (there is no per-meme switch), `off` does not. When omitted,
+   *  the nearest `ImageWatermarkProvider` decides (default `off`). */
+  watermark?: ImageWatermarkMode;
 }
 
 const TEMPLATES_URL = 'https://api.memegen.link/templates';
@@ -77,7 +84,9 @@ function MemePicker({
   signingUsername,
   onSigningStateChange,
   walletApprovalLabel = 'Open Keychain App & Approve',
+  watermark: watermarkProp,
 }: MemePickerProps): React.JSX.Element | null {
+  const watermarkMode = useImageWatermarkMode(watermarkProp);
   // ── Catalog state ────────────────────────────────────────────────────────
   const [templates, setTemplates] = useState<MemegenTemplate[]>([]);
   const [tplLoading, setTplLoading] = useState(false);
@@ -258,7 +267,10 @@ function MemePicker({
         canvas.toBlob((b) => resolve(b), 'image/png', 0.92),
       );
       if (!blob) throw new Error('Failed to render the meme image.');
-      const file = new File([blob], `meme-${Date.now()}.png`, { type: 'image/png' });
+      let file = new File([blob], `meme-${Date.now()}.png`, { type: 'image/png' });
+      if (effectiveWatermark(watermarkMode)) {
+        file = await prepareImageForUpload(file, { watermark: true });
+      }
 
       const url = await uploadImageWithFallback(file, {
         uploadImageFn,

@@ -57,5 +57,7 @@ export { default as CrossPostModal } from './CrossPostModal'
 export type { CrossPostModalProps } from './CrossPostModal'
 
 export { default as ImageCropperModal } from './ImageCropperModal'
+export { ImageWatermarkProvider, useImageWatermarkMode } from './ImageWatermarkContext'
+export type { ImageWatermarkProviderProps } from './ImageWatermarkContext'
 export type { ImageCropperModalProps } from './ImageCropperModal'
 

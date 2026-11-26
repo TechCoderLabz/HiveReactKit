@@ -106,6 +106,7 @@ import {
   type ProxyImageUploadFn,
 } from '../../services/hiveImageUpload';
 import { stripViaAppsCredit } from '../feed/AttachmentStrip';
+import type { ImageWatermarkMode } from '../../utils/watermark';
 
 const DESCRIPTION_MAX = 120;
 const TITLE_MAX = 120;
@@ -198,6 +199,11 @@ export interface ParentPostComposerProps {
   encoderUrl?: string;
   /** Server-side image upload for accounts that cannot sign (web2 / EVM). */
   uploadImageFn?: ProxyImageUploadFn;
+  /** HiveSuite watermark on images uploaded from this composer (image
+   *  uploader and meme generator): `forced` (always, no switch),
+   *  `default-on` (switch in the crop/blur popup) or `off`. When omitted,
+   *  the nearest `ImageWatermarkProvider` decides (default `off`). */
+  watermark?: ImageWatermarkMode;
   ecencyToken?: string;
   onSignMessage?: PostingSignMessageFn;
   signingUsername?: string;
@@ -528,6 +534,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
   uploadImageFn,
   encoderUrl,
   ecencyToken,
+  watermark: imageWatermark,
   onSignMessage,
   signingUsername,
   threeSpeakApiKey,
@@ -2294,6 +2301,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
                 {canUploadImages && (
                   <ImageUploader
                     ref={imageUploaderRef}
+                    watermark={imageWatermark}
                     onImageUploaded={(url) => insertText(`![Image](${url})\n`)}
                     onImagesUploaded={(urls) => insertText(urls.map((url) => `![Image](${url})\n`).join(''))}
                     threeSpeakToken={threeSpeakToken}
@@ -3216,6 +3224,7 @@ const ParentPostComposer: React.FC<ParentPostComposerProps> = ({
         youtubeApiKey={youtubeApiKey}
       />
       <MemePicker
+        watermark={imageWatermark}
         isOpen={isMemeOpen}
         onClose={() => setIsMemeOpen(false)}
         onSelectMeme={(url) => {

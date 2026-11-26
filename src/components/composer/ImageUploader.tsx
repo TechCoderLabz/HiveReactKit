@@ -2,6 +2,9 @@ import React, { useEffect, useImperativeHandle, useRef, useState, useCallback } 
 import { Image, X, Loader2, Crop as CropIcon, EyeOff, ChevronLeft, ChevronRight, Trash2, RotateCcw, Check, AlertCircle } from "lucide-react";
 import { uploadImageWithFallback, type PostingSignMessageFn, type ProxyImageUploadFn } from "../../services/hiveImageUpload";
 import { prepareImageForUpload, cropImage, type CropRect, type BlurRect } from "../../utils/imageProcessor";
+import { composeImageEdit, type ImageEdit } from "../../utils/imageEdit";
+import { effectiveWatermark, type ImageWatermarkMode } from "../../utils/watermark";
+import { useImageWatermarkMode } from "./ImageWatermarkContext";
 import ImageCropperModal from "./ImageCropperModal";
 
 /** Dig a human-readable message out of whatever an upload helper (or provider SDK) might throw. */
@@ -80,11 +83,21 @@ export interface ImageUploaderProps {
    *  the upstream image hosts truncate or reject — this guarantees we
    *  always ship a sensible size. */
   maxImageDimension?: number;
+  /** HiveSuite watermark on uploaded images (bottom-right, low opacity):
+   *  - `forced`: always added, no switch (free plan);
+   *  - `default-on`: added by default, switch in the crop/blur popup;
+   *  - `off`: never added.
+   *  When omitted, the nearest `ImageWatermarkProvider` decides (default `off`). */
+  watermark?: ImageWatermarkMode;
 }
 
 interface BatchItem {
   id: string;
   original: File;
+  /** Crop/blur edits relative to `original` (undefined = untouched). */
+  edit?: ImageEdit;
+  /** Whether `staged` carries the watermark. */
+  watermark: boolean;
   staged: File;
   previewUrl: string;
   reviewed: boolean;
@@ -109,7 +122,9 @@ const ImageUploader = React.forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   disabled = false,
   maxImageDimension,
   multiple = true,
+  watermark: watermarkProp,
 }, ref) => {
+  const watermarkMode = useImageWatermarkMode(watermarkProp);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [items, setItems] = useState<BatchItem[]>([]);
@@ -122,10 +137,27 @@ const ImageUploader = React.forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   const [isAwaitingApproval, setIsAwaitingApproval] = useState(false);
   const [cropperOpen, setCropperOpen] = useState(false);
   const [cropperInitialTool, setCropperInitialTool] = useState<'crop' | 'blur'>('crop');
+  /** Image shown in the crop/blur popup: the edited image *without* the
+   *  watermark, so the mark is never cropped into the picture. */
+  const [cropperSrc, setCropperSrc] = useState<string | null>(null);
+  const cropperOwnedUrlRef = useRef<string | null>(null);
+  /** Watermark choice committed from the popup, read by handleApplyCrop. */
+  const pendingWatermarkRef = useRef<boolean | null>(null);
+
+  /** Render the upload file from the original: one canvas pass for
+   *  crop + blur + resize + optional watermark. */
+  const renderStaged = useCallback(
+    (original: File, edit: ImageEdit | undefined, withWatermark: boolean): Promise<File> =>
+      edit
+        ? cropImage(original, edit.rect, { maxDimension: maxImageDimension, watermark: withWatermark }, edit.blurRects)
+        : prepareImageForUpload(original, { maxDimension: maxImageDimension, watermark: withWatermark }),
+    [maxImageDimension],
+  );
 
   // Revoke every preview URL on unmount.
   useEffect(() => () => {
     itemsRef.current.forEach((it) => URL.revokeObjectURL(it.previewUrl));
+    if (cropperOwnedUrlRef.current) URL.revokeObjectURL(cropperOwnedUrlRef.current);
   }, []);
 
   const cancelInFlight = useCallback(() => {
@@ -164,12 +196,14 @@ const ImageUploader = React.forwardRef<ImageUploaderRef, ImageUploaderProps>(({
     setIsProcessing(true);
     const added: BatchItem[] = [];
     const failures: string[] = [];
+    const withWatermark = effectiveWatermark(watermarkMode);
     for (const file of accepted) {
       try {
-        const prepared = await prepareImageForUpload(file, { maxDimension: maxImageDimension });
+        const prepared = await renderStaged(file, undefined, withWatermark);
         added.push({
           id: `img-${++batchSeq}`,
           original: file,
+          watermark: withWatermark,
           staged: prepared,
           // Preview built from the *prepared* blob so it reflects what is uploaded.
           previewUrl: URL.createObjectURL(prepared),
@@ -198,7 +232,7 @@ const ImageUploader = React.forwardRef<ImageUploaderRef, ImageUploaderProps>(({
     if (skippedForCap) notes.push(`${skippedForCap} image(s) skipped (max ${MAX_BATCH} per batch)`);
     notes.push(...failures);
     setError(notes.length ? notes.join(". ") : null);
-  }, [maxImageDimension]);
+  }, [renderStaged, watermarkMode]);
 
   const stageFile = useCallback((file: File) => stageFiles([file]), [stageFiles]);
 
@@ -239,15 +273,55 @@ const ImageUploader = React.forwardRef<ImageUploaderRef, ImageUploaderProps>(({
     });
   };
 
-  const handleApplyCrop = async (rect: CropRect, blurRects?: BlurRect[]) => {
+  const releaseCropperSrc = () => {
+    if (cropperOwnedUrlRef.current) URL.revokeObjectURL(cropperOwnedUrlRef.current);
+    cropperOwnedUrlRef.current = null;
+    setCropperSrc(null);
+  };
+
+  const closeCropper = () => {
     setCropperOpen(false);
+    pendingWatermarkRef.current = null;
+    releaseCropperSrc();
+  };
+
+  const openCropper = async (tool: 'crop' | 'blur') => {
+    const target = current;
+    if (!target) return;
+    setCropperInitialTool(tool);
+    pendingWatermarkRef.current = null;
+    releaseCropperSrc();
+    if (!target.watermark) {
+      setCropperSrc(target.previewUrl);
+      setCropperOpen(true);
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const base = await renderStaged(target.original, target.edit, false);
+      const url = URL.createObjectURL(base);
+      cropperOwnedUrlRef.current = url;
+      setCropperSrc(url);
+      setCropperOpen(true);
+    } catch (err) {
+      setError(extractUploadErrorMessage(err));
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleApplyCrop = async (rect: CropRect, blurRects?: BlurRect[]) => {
+    const choice = pendingWatermarkRef.current;
+    closeCropper();
     const target = current;
     if (!target) return;
     setIsProcessing(true);
     try {
-      const cropped = await cropImage(target.original, rect, { maxDimension: maxImageDimension }, blurRects);
+      const edit = composeImageEdit(target.edit, rect, blurRects);
+      const withWatermark = effectiveWatermark(watermarkMode, choice ?? target.watermark);
+      const cropped = await renderStaged(target.original, edit, withWatermark);
       URL.revokeObjectURL(target.previewUrl);
-      updateItem(target.id, { staged: cropped, previewUrl: URL.createObjectURL(cropped), status: "pending", error: undefined, url: undefined });
+      updateItem(target.id, { edit, watermark: withWatermark, staged: cropped, previewUrl: URL.createObjectURL(cropped), status: "pending", error: undefined, url: undefined });
     } catch (err) {
       setError(extractUploadErrorMessage(err));
     } finally {
@@ -293,10 +367,20 @@ const ImageUploader = React.forwardRef<ImageUploaderRef, ImageUploaderProps>(({
     setIsUploading(true);
     setError(null);
     const uploaded = new Map<string, string>();
-    for (const item of queue) {
+    for (const queued of queue) {
       if (signal.aborted) break;
+      let item = queued;
       updateItem(item.id, { status: "uploading", error: undefined });
       try {
+        // The host may have changed the mode since staging (e.g. plan status
+        // loaded). Never upload without the mark when it is required.
+        const wanted = effectiveWatermark(watermarkMode, item.watermark);
+        if (wanted !== item.watermark) {
+          const staged = await renderStaged(item.original, item.edit, wanted);
+          URL.revokeObjectURL(item.previewUrl);
+          item = { ...item, staged, watermark: wanted, previewUrl: URL.createObjectURL(staged) };
+          updateItem(item.id, { staged, watermark: wanted, previewUrl: item.previewUrl });
+        }
         const url = await uploadOne(item, signal);
         if (signal.aborted) break;
         uploaded.set(item.id, url);
@@ -473,7 +557,7 @@ const ImageUploader = React.forwardRef<ImageUploaderRef, ImageUploaderProps>(({
                         <>
                           <button
                             type="button"
-                            onClick={() => { setCropperInitialTool('blur'); setCropperOpen(true); }}
+                            onClick={() => { void openCropper('blur'); }}
                             className="inline-flex items-center gap-1.5 rounded-md border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs text-cyan-300 hover:bg-cyan-500/20 font-medium transition-colors"
                             title="Blur or hide private info (phone numbers, IDs, faces)"
                           >
@@ -482,7 +566,7 @@ const ImageUploader = React.forwardRef<ImageUploaderRef, ImageUploaderProps>(({
                           </button>
                           <button
                             type="button"
-                            onClick={() => { setCropperInitialTool('crop'); setCropperOpen(true); }}
+                            onClick={() => { void openCropper('crop'); }}
                             className="inline-flex items-center gap-1.5 rounded-md border border-[var(--hrk-border-subtle)] px-3 py-1.5 text-xs hover:bg-[var(--hrk-bg-surface)] text-[var(--hrk-text-secondary)] hover:text-[var(--hrk-text-primary)] transition-colors"
                             title="Crop and resize image"
                           >
@@ -546,13 +630,16 @@ const ImageUploader = React.forwardRef<ImageUploaderRef, ImageUploaderProps>(({
           </div>
         </div>
       )}
-      {current && (
+      {current && cropperSrc && (
         <ImageCropperModal
           isOpen={cropperOpen}
-          onClose={() => setCropperOpen(false)}
-          src={current.previewUrl}
+          onClose={closeCropper}
+          src={cropperSrc}
           initialTool={cropperInitialTool}
           onApply={handleApplyCrop}
+          watermarkMode={watermarkMode}
+          watermarkEnabled={current.watermark}
+          onWatermarkChange={(enabled) => { pendingWatermarkRef.current = enabled; }}
         />
       )}
     </div>
