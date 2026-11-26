@@ -69,7 +69,7 @@ import { stripFirstContextLink, extractFirstContextTwitterId } from '@/utils/fir
 import { stripViaAppsCredit } from './feed/AttachmentStrip';
 import { DEFAULT_TRANSLATE_LANGUAGES } from '@/i18n/selectionTranslate';
 import { toast } from '@/hooks';
-import { useSupporterTierMap, getSupporterRing, getSupporterBadge, SupporterTierPill } from '@/context/SupporterTierContext';
+import { useSupporterTierMap, getSupporterRing, getSupporterBadge /* , SupporterTierPill */ } from '@/context/SupporterTierContext';
 import { AuthorInfoCard, ConfigurableDetailLayout, type PostDetailLayout } from './postDetail/DetailLayout';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -3360,7 +3360,10 @@ export function HiveDetailPost({
                 >
                   {web2Identity.isWeb2 ? web2Identity.displayName : `@${post.author}`}
                 </HiveLink>
-                {!web2Identity.isWeb2 && <SupporterTierPill tier={supporterTierMap[post.author]} />}
+                {/* Supporter tier pill ("★ Platinum") hidden in the post header: with
+                    avatar, @name, reputation, time-ago and community it was too much.
+                    The avatar ring and tinted @name still show the tier. */}
+                {/* {!web2Identity.isWeb2 && <SupporterTierPill tier={supporterTierMap[post.author]} />} */}
                 {post.author_reputation !== undefined && (
                   <div className="relative group inline-flex shrink-0">
                     <span
