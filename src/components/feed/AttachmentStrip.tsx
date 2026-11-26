@@ -11,6 +11,7 @@ import {
   Maximize2,
   Loader2,
   Repeat,
+  Twitter,
 } from 'lucide-react';
 import type { Post } from '@/types/post';
 import { ThreeSpeakPlayer as ThreeSpeakNativePlayer, type ThreeSpeakPlayerInjectedProps } from '../ThreeSpeakPlayer';
@@ -18,6 +19,8 @@ import { IPFS_URL_REGEX, useIpfsKind } from '../IpfsMedia';
 import { proxyLegacyIpfsImageUrl } from '../../utils/ipfsImageProxy';
 import { stripFirstContextLink, extractFirstContextTwitterId, isFirstContextPost } from '@/utils/firstContext';
 import { YOUTUBE_IFRAME_REFERRER_POLICY, youtubeEmbedSrc } from '@/utils/youtubeEmbed';
+import { odyseeTitleFromUrl, spotifyKindFromUrl, withOdyseeAutoplay, youtubeThumbnailUrl } from '@/utils/embedFacade';
+import { ClickToLoadEmbed } from './ClickToLoadEmbed';
 
 export { stripFirstContextLink, extractFirstContextTwitterId, isFirstContextPost };
 
@@ -1199,6 +1202,10 @@ export const AttachmentStrip: FC<AttachmentStripProps> = ({ attachments, disable
     });
   };
 
+  // One React identity per attachment: switching attachment (prev/next)
+  // mounts a fresh facade/player instead of re-pointing a live iframe.
+  const tileKey = `${safeIdx}:${current.kind}:${'id' in current ? current.id : current.url}`;
+
   const renderTile = () => {
     if (disableIframePreviews && isIframeAttachment(current)) {
       return <IframeDisabledLink attachment={current} />;
@@ -1245,40 +1252,40 @@ export const AttachmentStrip: FC<AttachmentStripProps> = ({ attachments, disable
       );
     }
     if (current.kind === 'youtube') {
+      // Click-to-load: a proxied thumbnail until the viewer taps, so a feed
+      // mount creates no YouTube iframes (each one is a cross-origin
+      // renderer process). Keyed per attachment so the iframe is created
+      // once with its final src and never re-pointed (see ClickToLoadEmbed).
+      const videoId = current.id;
       return (
-        <div
-          className="flex h-full w-full items-center justify-center bg-black"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <iframe
-            src={youtubeEmbedSrc(current.id)}
-            referrerPolicy={YOUTUBE_IFRAME_REFERRER_POLICY}
-            title="YouTube"
-            className="border-0"
-            style={{ aspectRatio: '16/9', height: '100%', maxHeight: '100%', maxWidth: '100%' }}
-            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            // Every embedded iframe here is a separate cross-origin renderer
-            // process Chrome has to spin up — in a long, unvirtualized feed
-            // list this is a much bigger memory cost than the video itself.
-            // `loading="lazy"` (same as every <img> in this file) defers
-            // that until the tile is actually near the viewport instead of
-            // the instant its post's card mounts.
-            loading="lazy"
-          />
-        </div>
+        <ClickToLoadEmbed
+          key={tileKey}
+          label="YouTube"
+          thumbnail={youtubeThumbnailUrl(videoId)}
+          renderPlayer={() => (
+            <div className="flex h-full w-full items-center justify-center bg-black">
+              <iframe
+                src={youtubeEmbedSrc(videoId, { autoplay: true })}
+                referrerPolicy={YOUTUBE_IFRAME_REFERRER_POLICY}
+                title="YouTube"
+                className="border-0"
+                style={{ aspectRatio: '16/9', height: '100%', maxHeight: '100%', maxWidth: '100%' }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          )}
+        />
       );
     }
     if (current.kind === 'threespeak') {
       const ap = parse3SpeakAuthorPermlink(current.url);
-      return (
-        <div
-          className="three-speak-snap-strip flex h-full w-full items-center justify-center overflow-hidden bg-black"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {ap ? (
-            <ActiveThreeSpeakPlayer author={ap.author} permlink={ap.permlink} hideThumbnail />
-          ) : (
+      if (!ap) {
+        return (
+          <div
+            className="three-speak-snap-strip flex h-full w-full items-center justify-center overflow-hidden bg-black"
+            onClick={(e) => e.stopPropagation()}
+          >
             <a
               href={current.url}
               target="_blank"
@@ -1288,18 +1295,35 @@ export const AttachmentStrip: FC<AttachmentStripProps> = ({ attachments, disable
             >
               Open on 3Speak
             </a>
+          </div>
+        );
+      }
+      // The player fetches 3Speak's embed API and mounts an iframe on
+      // mount, so it is only created after a tap.
+      return (
+        <ClickToLoadEmbed
+          key={tileKey}
+          label="3Speak"
+          title={`@${ap.author}`}
+          playerClassName="three-speak-snap-strip flex h-full w-full items-center justify-center overflow-hidden bg-black"
+          renderPlayer={() => (
+            <ActiveThreeSpeakPlayer author={ap.author} permlink={ap.permlink} hideThumbnail autoplay />
           )}
-        </div>
+        />
       );
     }
     if (current.kind === 'twitter') {
       return (
-        <div
-          className="flex w-full items-center justify-center p-1 sm:p-2"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <TwitterEmbed id={current.id} />
-        </div>
+        <ClickToLoadEmbed
+          key={tileKey}
+          variant="card"
+          label="Post on X"
+          icon={<Twitter className="h-5 w-5" />}
+          actionLabel="Show post"
+          sourceUrl={attachmentSourceUrl(current)}
+          playerClassName="flex w-full items-center justify-center p-1 sm:p-2"
+          renderPlayer={() => <TwitterEmbed id={current.id} />}
+        />
       );
     }
     if (current.kind === 'audio') {
@@ -1321,59 +1345,61 @@ export const AttachmentStrip: FC<AttachmentStripProps> = ({ attachments, disable
       );
     }
     if (current.kind === '3speak-audio') {
+      const audioUrl = current.url;
       return (
-        <div
-          className="flex h-full w-full items-center justify-center bg-[#1a1d21] p-4"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="w-full max-w-md overflow-hidden rounded-xl border border-[var(--hrk-border-default)] bg-[#15181b]">
-            <iframe
-              src={current.url}
-              title="3Speak audio player"
-              className="h-24 w-full border-0"
-              loading="lazy"
-            />
-          </div>
-        </div>
+        <ClickToLoadEmbed
+          key={tileKey}
+          variant="card"
+          label="3Speak audio"
+          icon={<Music className="h-5 w-5" />}
+          sourceUrl={audioUrl}
+          playerClassName="flex h-full w-full items-center justify-center bg-[#1a1d21] p-4"
+          renderPlayer={() => (
+            <div className="w-full max-w-md overflow-hidden rounded-xl border border-[var(--hrk-border-default)] bg-[#15181b]">
+              <iframe
+                src={audioUrl}
+                title="3Speak audio player"
+                className="h-24 w-full border-0"
+                allow="autoplay"
+              />
+            </div>
+          )}
+        />
       );
     }
     if (current.kind === 'spotify') {
       const embedUrl = current.url.replace('open.spotify.com/', 'open.spotify.com/embed/');
+      const spotifyKind = spotifyKindFromUrl(current.url);
       return (
-        <div
-          className="flex h-full w-full items-center justify-center bg-[#1a1d21] p-4"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="w-full max-w-md overflow-hidden rounded-xl border border-[var(--hrk-border-default)] bg-[#15181b]">
-            <iframe
-              src={embedUrl}
-              title="Spotify Player"
-              className="h-56 w-full border-0 rounded-lg"
-              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-              loading="lazy"
-            />
-          </div>
-        </div>
+        <ClickToLoadEmbed
+          key={tileKey}
+          variant="card"
+          label="Spotify"
+          title={spotifyKind ? spotifyKind.charAt(0).toUpperCase() + spotifyKind.slice(1) : null}
+          icon={<Music className="h-5 w-5" />}
+          sourceUrl={current.url}
+          playerClassName="flex h-full w-full items-center justify-center bg-[#1a1d21] p-4"
+          renderPlayer={() => (
+            <div className="w-full max-w-md overflow-hidden rounded-xl border border-[var(--hrk-border-default)] bg-[#15181b]">
+              <iframe
+                src={embedUrl}
+                title="Spotify Player"
+                className="h-56 w-full border-0 rounded-lg"
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              />
+            </div>
+          )}
+        />
       );
     }
     if (current.kind === 'odysee') {
       const embedUrl = buildOdyseeEmbedUrl(current.url);
-      return (
-        <div
-          className="flex h-full w-full items-center justify-center bg-black"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {embedUrl ? (
-            <iframe
-              src={embedUrl}
-              title="Odysee Video"
-              className="border-0"
-              style={{ aspectRatio: '16/9', height: '100%', maxHeight: '100%', maxWidth: '100%' }}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              loading="lazy"
-            />
-          ) : (
+      if (!embedUrl) {
+        return (
+          <div
+            className="flex h-full w-full items-center justify-center bg-black"
+            onClick={(e) => e.stopPropagation()}
+          >
             <a
               href={current.url}
               target="_blank"
@@ -1383,8 +1409,26 @@ export const AttachmentStrip: FC<AttachmentStripProps> = ({ attachments, disable
             >
               Open on Odysee
             </a>
+          </div>
+        );
+      }
+      return (
+        <ClickToLoadEmbed
+          key={tileKey}
+          label="Odysee"
+          title={odyseeTitleFromUrl(current.url)}
+          playerClassName="flex h-full w-full items-center justify-center bg-black"
+          renderPlayer={() => (
+            <iframe
+              src={withOdyseeAutoplay(embedUrl)}
+              title="Odysee Video"
+              className="border-0"
+              style={{ aspectRatio: '16/9', height: '100%', maxHeight: '100%', maxWidth: '100%' }}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
           )}
-        </div>
+        />
       );
     }
     return null;
